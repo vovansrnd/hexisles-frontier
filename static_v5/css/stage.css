@@ -1,0 +1,116 @@
+/* stage.css - the single owner of everything that floats over the map (hand, actions, toasts)
+   and of the wide-screen frame. Loaded last on purpose; do not restyle these elements elsewhere. */
+.dock[hidden] { display: none; }
+.limits { display: flex; gap: 4px; flex-wrap: wrap; font-size: 11.5px; color: var(--text-2); }
+.limits span { display: inline-flex; align-items: center; gap: 3px; padding: 2px 6px; border-radius: 999px; border: 1px solid var(--line-2); background: var(--bg-2); }
+.limits .ic { width: 13px; height: 13px; }
+.limits .zero { color: var(--danger); border-color: var(--danger); }
+
+#toast-root { position: fixed; z-index: 60; left: 8px; bottom: calc(var(--dock-h, 0px) + 10px); display: flex; flex-direction: column;
+  justify-content: flex-end; gap: 6px; align-items: flex-start; pointer-events: none; max-width: min(380px, calc(100% - 16px)); }
+
+/* ---- wide screens: map owns the full height; controls sit in the corners ---- */
+@media (min-width: 861px) {
+  #game { grid-template-rows: auto minmax(0, 1fr); grid-template-areas: "stage top" "stage side"; }
+  .topbar { height: auto; flex-wrap: wrap; gap: 6px; padding: 6px 8px; border-left: 1px solid var(--line); }
+  .brand span:not(.ic), .topbar .grow { display: none; }
+  .zoom { top: 10px; }
+  #toast-root { left: 10px; bottom: 10px; }
+  .dock { display: contents; }
+  .hudbar { position: absolute; z-index: 4; left: calc((100% - var(--rail-r, 0px)) / 2); bottom: 8px; transform: translateX(-50%); display: flex; align-items: center; gap: 10px;
+    padding: 4px 10px; background: var(--panel); border: 1px solid var(--line-2); border-radius: 999px; box-shadow: var(--shadow); }
+  .hudbar, .hudbar .limits { white-space: nowrap; flex-wrap: nowrap; }
+  .hudbar .hand { flex-direction: row; gap: 4px; }
+  .hudbar .rcard { width: auto; flex-direction: row; gap: 5px; padding: 2px 8px; border: 0; border-radius: 999px; }
+  .hudbar .rcard small { display: none; }
+  .hudbar .rcard .ic { width: 16px; height: 16px; }
+  .hudbar .rcard b { font-size: 15px; }
+  /* Fixed-size action column: appearing/disappearing buttons never move the primary one or resize the stack. */
+  .actions { position: absolute; z-index: 4; right: 10px; bottom: 10px; width: 206px; display: flex; flex-direction: column; justify-content: flex-end; gap: 6px; }
+  .actions .abtn { width: 100%; height: 38px; flex-direction: row; justify-content: flex-start; gap: 8px; padding: 0 10px; font-size: 13px; }
+  .actions .abtn .cost { margin-left: auto; flex-direction: row; white-space: nowrap; font-size: 11px; }
+  .actions .abtn:last-child { height: 46px; }
+}
+
+/* Narrow windows: the centred hand bar would sit under the toasts, so toasts rise just above it. */
+@media (min-width: 861px) and (max-width: 1300px) { #toast-root { bottom: 58px; } }
+/* Side tabs: four equal columns, no icons, so "Патенты" never gets cut off. */
+.tabs .tab { flex: 1 1 0; min-width: 0; justify-content: center; padding-inline: 6px; font-size: 12.5px; }
+.tabs .tab > span:first-child { display: none; }
+
+/* ---- phones: one fixed-height dock, actions scroll sideways instead of wrapping ---- */
+@media (max-width: 860px) {
+  .zoom { top: 142px; right: 4px; flex-direction: column; }
+  .hudbar { display: flex; flex-direction: column; gap: 4px; }
+  .limits { justify-content: center; }
+  .dock .actions { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(58px, 1fr); gap: 6px; overflow-x: auto; min-height: 46px; }
+  .dock .actions .abtn { min-height: 0; min-width: 0; padding: 4px 2px; font-size: 10.5px; gap: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #toast-root .toast { font-size: 13px; padding: 6px 12px; }
+  .dock .actions .abtn .ic { width: 16px; height: 16px; }
+}
+
+/* ---- info tab: one compact card ---- */
+.info { display: flex; flex-direction: column; gap: 12px; padding: 12px; }
+.info small { display: block; margin-bottom: 4px; font-size: 10px; letter-spacing: .09em; text-transform: uppercase; color: var(--muted); }
+.info-top { display: grid; grid-template-columns: auto 1fr; gap: 14px; align-items: start; }
+.info-goal { font-size: 17px; white-space: nowrap; }
+.info .chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.price-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 0; }
+.price-name { display: flex; align-items: center; gap: 7px; font-size: 13px; }
+.price-name .ic { width: 16px; height: 16px; }
+.price-cost { display: flex; gap: 3px; }
+.price-cost .chip { padding: 1px 6px; font-size: 11.5px; gap: 3px; }
+.price-cost .chip .ic { width: 12px; height: 12px; }
+.info-rules { display: flex; align-items: center; justify-content: center; gap: 6px; }
+.turn-wait { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 38px; padding: 0 12px; border-radius: 10px;
+  border: 1px dashed var(--line-2); color: var(--text-2); font-size: 13px; width: 100%; }
+.turn-wait i { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+
+@media (max-width: 860px) {
+  /* Build limits float, translucent, just above the dock: no extra row, still always visible. */
+  .limits { position: fixed; right: 6px; bottom: calc(var(--dock-h, 0px) + 10px); z-index: 5; flex-wrap: nowrap; pointer-events: none;
+    padding: 3px 8px; border-radius: 999px; background: rgba(10, 14, 20, .55); gap: 8px; }
+  .limits span { border: 0; background: none; padding: 0; }
+  #toast-root { max-width: calc(100% - 150px); }
+  /* Slimmer player ovals and dice card: more map. */
+  .players-chips { gap: 4px; }
+  .pchip { padding: 1px 6px; line-height: 1.15; }
+  .pchip-name { font-size: 10px; }
+  .pchip-vp { font-size: 12px; }
+  .dice { padding: 5px 8px; gap: 6px; }
+  .dice-total { font-size: 20px; min-width: 28px; }
+}
+
+/* ---- lobby on phones: form first, compact hero, thumb-reachable primary button ---- */
+@media (max-width: 900px) {
+  .hero { display: none; } /* phones: straight to the form */
+  .lobby-card { padding: 14px 14px 0; gap: 14px; }
+  .bot { padding: 8px 10px; }
+  .bot small { display: none; }
+  .lobby-cta { position: sticky; bottom: 0; margin: 0 -14px; border-radius: 0; width: calc(100% + 28px); box-shadow: 0 -10px 18px var(--bg, #0b1118); z-index: 2; }
+  .friends-note { margin: 0; font-size: 13px; }
+}
+
+/* ---- phones: map tools only when useful, labelled panel button, players overlay ---- */
+.zoom:not(.is-moved) { display: none; }
+.lbl { min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pchip-badge .ic { width: 12px; height: 12px; color: var(--brass-2); }
+.side-toggle { position: relative; }
+.drawer-open .side-toggle .ic { opacity: 0; }
+.drawer-open .side-toggle::after { content: "✕"; position: absolute; inset: 0; display: grid; place-items: center; font-size: 18px; }
+@media (max-width: 860px) {
+  #stage > #side-players { display: none; position: absolute; z-index: 7; left: 8px; right: 8px; top: calc(var(--chips-h, 44px) + 6px); max-height: calc(100% - var(--chips-h, 44px) - 16px);
+    overflow-y: auto; flex-direction: column; gap: 6px; padding: 8px; background: var(--panel-solid, var(--panel)); border: 1px solid var(--line-2); border-radius: 14px; box-shadow: var(--shadow); }
+  .players-open #stage > #side-players { display: flex; }
+  .drawer-open #stage::after { content: ""; position: absolute; inset: 0; background: rgba(0, 0, 0, .35); z-index: 3; pointer-events: none; }
+}
+/* ---- raider: only hexes with someone to rob are bright; the rest stay quiet ---- */
+.tgt-hex { fill: transparent; stroke: var(--brass-2); stroke-opacity: .28; stroke-width: 1.6; stroke-dasharray: none; animation: none; }
+.tgt-victim .tgt-hex { fill: rgba(255, 220, 140, .1); stroke-opacity: .9; stroke-width: 2.6; animation: victim-pulse 2s ease-in-out infinite; }
+@keyframes victim-pulse { 50% { opacity: .55; } }
+/* ---- rules modal ---- */
+.rules-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; margin: 10px 0; }
+.rules-card { padding: 12px 14px; border: 1px solid var(--line-2); border-radius: 14px; background: var(--bg-2); }
+.rules-head { display: flex; align-items: center; gap: 8px; } .rules-head h3 { margin: 0; font-size: 16px; }
+.rules-intro { margin: 6px 0; color: var(--text-2); font-size: 13px; }
+.rules-bullets { margin: 6px 0 0; padding-left: 16px; display: grid; gap: 4px; font-size: 13px; }

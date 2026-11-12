@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="ru" data-theme="night">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0b1016">
+  <meta name="ws-port" content="__HEXISLES_WS_PORT__">
+  <meta name="build" content="__HEXISLES_BUILD__">
+  <title>Terra Incognita</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='14' fill='%230b1016' stroke='%23dca94b' stroke-width='2'/%3E%3Cpath d='M20 10l-3 7-7 3 3-7z' fill='%23dca94b'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="css/theme.css">
+  <link rel="stylesheet" href="css/layout.css">
+  <link rel="stylesheet" href="css/board.css">
+  <link rel="stylesheet" href="css/ui.css">
+<link rel="stylesheet" href="css/stage.css">
+</head>
+<body>
+  <div id="app">
+    <main id="lobby" class="screen" aria-label="Лобби"></main>
+    <div id="game" class="screen" hidden>
+      <header id="topbar" class="topbar"></header>
+      <main id="stage" class="stage">
+        <div id="board-host"></div>
+        <div id="stage-top" class="stage-top"></div>
+        <div id="players-chips" class="players-chips" aria-label="Игроки"></div>
+        <div id="dock" class="dock" hidden></div>
+      </main>
+      <aside id="side" class="side" aria-label="Игроки, журнал и обмен">
+        <div id="side-players" class="side-players" aria-label="Игроки"></div>
+        <div id="side-tabs" class="side-tabs"></div>
+      </aside>
+    </div>
+  </div>
+  <div id="modal-root"></div>
+  <div id="toast-root" aria-live="polite"></div>
+  <div id="live" class="sr-only" aria-live="polite"></div>
+  <noscript><p style="padding:2rem;color:#ebe5d3">Для игры нужен JavaScript.</p></noscript>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>

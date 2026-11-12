@@ -1,0 +1,80 @@
+/* ---------- board ---------- */
+.board { width: 100%; height: 100%; display: block; touch-action: none; user-select: none; cursor: grab; outline: none; }
+.board.panning { cursor: grabbing; }
+.grat { fill: none; stroke: var(--graticule); stroke-width: 1; }
+.rose-ring { fill: none; stroke: var(--graticule); stroke-width: 1.5; }
+.rose-star { fill: var(--graticule); }
+.rose-n { fill: var(--muted); font: 600 12px var(--font-serif); opacity: .6; }
+
+.hex-base { fill: var(--tc, var(--t-unknown)); stroke: var(--land-edge); stroke-width: 1.4; stroke-linejoin: round; transition: fill .4s; }
+.hex-sheen { fill: none; stroke: rgba(255, 255, 255, .13); stroke-width: 1.2; }
+.hex .emblem { color: rgba(0, 0, 0, .2); }
+.t-forest { --tc: var(--t-forest); } .t-hills { --tc: var(--t-hills); } .t-fields { --tc: var(--t-fields); }
+.t-pasture { --tc: var(--t-pasture); } .t-mountains { --tc: var(--t-mountains); }
+.t-wasteland { --tc: var(--t-wasteland); } .t-ruins { --tc: var(--t-ruins); }
+.hex.fog .hex-base { fill: url(#pat-fog); stroke: rgba(160, 190, 225, .22); stroke-dasharray: 4 5; }
+.hex.fog .hex-sheen { display: none; }
+.hex.fog .emblem { color: rgba(170, 200, 235, .28); x: -12px; y: -14px; }
+.hex.reveal { animation: reveal .8s var(--ease); transform-box: fill-box; transform-origin: center; }
+@keyframes reveal { 0% { opacity: .2; filter: brightness(2.4); } 60% { filter: brightness(1.4); } 100% { opacity: 1; filter: none; } }
+
+.coin circle { fill: var(--coin); stroke: rgba(0, 0, 0, .45); stroke-width: 1; }
+.coin-n { fill: var(--coin-ink); font: 700 15px var(--font-ui); font-variant-numeric: tabular-nums; }
+.coin.hot .coin-n { fill: var(--coin-hot); }
+.pips circle { fill: var(--coin-ink); } .coin.hot .pips circle { fill: var(--coin-hot); }
+
+.blight-ov { fill: url(#pat-blight); stroke: none; opacity: 0; pointer-events: none; transition: opacity .5s; }
+.hex.blight .blight-ov { opacity: .85; fill: url(#pat-blight); }
+.hex.blight .hex-base { filter: saturate(.55) brightness(.82); }
+.hex.blight.b2 .hex-base { filter: saturate(.3) brightness(.62); }
+.hex.blight .hex-sheen { stroke: var(--blight); stroke-width: 2.4; stroke-opacity: .85; }
+.hex.blight.b2 .hex-sheen { stroke-dasharray: 3 3;  }
+@keyframes marching { to { stroke-dashoffset: -12; } }
+
+.hex.roll-hit .hex-sheen { stroke: var(--brass-2); stroke-width: 3.2; animation: hit 1s ease-in-out 2; }
+.hex.roll-hit .coin circle { fill: var(--brass-2); }
+@keyframes hit { 50% { stroke-opacity: .25; } }
+
+.port-pill { fill: var(--panel-solid); stroke: var(--line-2); stroke-width: 1.2; }
+.port-pill.res-wood { stroke: var(--r-wood); } .port-pill.res-clay { stroke: var(--r-clay); } .port-pill.res-grain { stroke: var(--r-grain); }
+.port-pill.res-wool { stroke: var(--r-wool); } .port-pill.res-ore { stroke: var(--r-ore); }
+.port-t { fill: var(--text); font: 700 10px var(--font-ui); } .port-line { stroke: var(--line-2); stroke-width: 1.4; stroke-dasharray: 2 2; }
+.port-ic.res-wood { color: var(--r-wood); } .port-ic.res-clay { color: var(--r-clay); } .port-ic.res-grain { color: var(--r-grain); }
+.port-ic.res-wool { color: var(--r-wool); } .port-ic.res-ore { color: var(--r-ore); }
+
+.route-out { stroke: rgba(8, 10, 14, .78); stroke-width: 11; stroke-linecap: round; }
+.route-in { stroke: var(--pc); stroke-width: 6.4; stroke-linecap: round; }
+.route.fresh .route-in { stroke-dasharray: 80; animation: draw .55s var(--ease); }
+@keyframes draw { from { stroke-dashoffset: 80; } to { stroke-dashoffset: 0; } }
+
+.piece-body { color: var(--pc); fill: var(--pc); stroke: rgba(8, 10, 14, .85); stroke-width: 1.4; stroke-linejoin: round; filter: url(#soft-shadow); }
+.piece use { color: var(--pc); }
+.piece-shadow { fill: rgba(0, 0, 0, .35); }
+.piece-mark { fill: rgba(255, 255, 255, .95); stroke: rgba(0, 0, 0, .6); stroke-width: .8; }
+.piece-in.fresh { animation: pop .5s cubic-bezier(.3, 1.6, .5, 1); transform-box: fill-box; transform-origin: center bottom; }
+@keyframes pop { from { transform: scale(.2); opacity: 0; } }
+
+.raider-fig { color: var(--raider); filter: drop-shadow(0 2px 3px rgba(0, 0, 0, .7)); transition: transform .4s var(--ease); }
+:root[data-theme="night"] .raider-fig { color: #05070b; filter: drop-shadow(0 0 3px rgba(190, 150, 255, .6)); }
+.raider-shadow { fill: rgba(0, 0, 0, .35); }
+ @keyframes float { 50% { transform: translateY(-2px); } }
+
+/* targets */
+.tgt { cursor: pointer; outline: none; }
+.tgt-hit { fill: transparent; } .tgt-hit-line { stroke: transparent; stroke-width: 22; stroke-linecap: round; }
+.tgt-ring { fill: rgba(255, 220, 140, .18); stroke: var(--brass-2); stroke-width: 2.4; animation: ring 1.4s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+.tgt-dot { fill: var(--brass-2); }
+.tgt-edge { stroke: var(--brass-2); stroke-width: 7; stroke-linecap: round; opacity: .55; animation: glow 1.4s ease-in-out infinite; }
+.tgt-hex { fill: rgba(255, 220, 140, .16); stroke: var(--brass-2); stroke-width: 3; stroke-dasharray: 8 5; animation: marching 1.2s linear infinite; }
+.tgt:hover .tgt-ring, .tgt:focus-visible .tgt-ring { fill: rgba(255, 220, 140, .5); transform: scale(1.25); animation: none; }
+.tgt:hover .tgt-edge, .tgt:focus-visible .tgt-edge { opacity: 1; stroke-width: 9; animation: none; }
+.tgt:hover .tgt-hex, .tgt:focus-visible .tgt-hex { fill: rgba(255, 220, 140, .38); }
+@keyframes ring { 50% { transform: scale(1.18); fill: rgba(255, 220, 140, .08); } }
+@keyframes glow { 50% { opacity: .22; } }
+
+/* Trade-route specialisation: a clear halo over owned roads; previews are dashed. */
+.route-highlight { pointer-events: none; }
+.route-highlight-halo { stroke: rgba(10, 13, 18, .92); stroke-width: 15; stroke-linecap: round; }
+.route-highlight-line { stroke: var(--brass-2); stroke-width: 8; stroke-linecap: round; filter: url(#glow); }
+.route-highlight-active .route-highlight-line { stroke: var(--brass-2); }
+.route-highlight-preview .route-highlight-line { stroke: #8ecfff; stroke-width: 5; stroke-dasharray: 7 5; filter: none; }

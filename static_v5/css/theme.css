@@ -1,0 +1,50 @@
+/* Terra Incognita — fixed dark expedition-table palette. */
+:root {
+  color-scheme: dark;
+  --font-ui: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+  --bg: #0b1016; --bg-2: #111922; --panel: rgba(21, 30, 41, .97); --panel-solid: #151e29; --panel-2: #1b2735;
+  --line: #28384a; --line-2: #35495f;
+  --text: #ebe5d3; --text-2: #c2c8cf; --muted: #8393a5;
+  --brass: #dca94b; --brass-2: #f3cd7e; --brass-ink: #2a1c05;
+  --ok: #67c08b; --warn: #e8a94a; --danger: #e8604f; --info: #6fb7f2;
+  --focus: #8fd0ff;
+  --shadow: 0 10px 30px rgba(0, 0, 0, .45), 0 2px 6px rgba(0, 0, 0, .35);
+  --radius: 14px; --radius-sm: 9px; --radius-lg: 20px;
+
+  --ocean-1: #1b2e40; --ocean-2: #0a1118; --graticule: rgba(143, 177, 214, .07);
+  --land-edge: rgba(8, 12, 18, .55); --coin: #f2e9cf; --coin-ink: #2a2418; --coin-hot: #b83a2a;
+
+  --t-forest: #3d7a4d; --t-hills: #b4603f; --t-fields: #d4b64d; --t-pasture: #8dbd62;
+  --t-mountains: #77828f; --t-wasteland: #a89a80; --t-ruins: #7d6b96; --t-unknown: #1e2a37;
+  --r-wood: #5e9c62; --r-clay: #c9714d; --r-grain: #e0c25a; --r-wool: #b7d98f; --r-ore: #93a0ae;
+
+  --blight: #a24dd1; --raider: #1a1a22;
+  --ease: cubic-bezier(.2, .8, .2, 1); --t-fast: .14s; --t-med: .28s;
+}
+*, *::before, *::after { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body {
+  font: 15px/1.4 var(--font-ui); color: var(--text); background: var(--bg);
+  -webkit-font-smoothing: antialiased; overflow: hidden; touch-action: manipulation;
+}
+h1, h2, h3 { font-family: var(--font-serif); font-weight: 600; letter-spacing: .01em; margin: 0; }
+button { font: inherit; color: inherit; cursor: pointer; }
+button:disabled { cursor: not-allowed; }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 6px; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.num { font-variant-numeric: tabular-nums; }
+.muted { color: var(--muted); }
+[hidden] { display: none !important; }
+@media (prefers-reduced-motion: reduce) { :root { --t-fast: 0s; --t-med: 0s; } }
+:root[data-motion="off"] *, :root[data-motion="off"] *::before, :root[data-motion="off"] *::after {
+  animation-duration: 0s !important; animation-iteration-count: 1 !important; transition-duration: 0s !important;
+}
+::-webkit-scrollbar { width: 9px; height: 9px; }
+::-webkit-scrollbar-thumb { background: var(--line-2); border-radius: 9px; border: 2px solid transparent; background-clip: padding-box; }
+
+/* Faction accent: only the player's own side recolours the interface. */
+:root[data-side="cult"]  { --brass: #c46bf0; --brass-2: #dfa2ff; --brass-ink: #1b0626; --line-2: #4a3560; --panel-solid: #1c1426; --bg-2: #150f1d; }
+:root[data-side="order"] { --brass: #6fb7f2; --brass-2: #a9d6ff; --brass-ink: #04223d; --line-2: #35566f; --panel-solid: #131f2c; --bg-2: #0f1a26; }

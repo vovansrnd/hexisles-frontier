@@ -1,0 +1,107 @@
+/* ---------- app shell ----------
+   V5: the map is the layout. Two columns only (stage + one side panel);
+   everything else floats above the map. Mobile: map full-bleed, players as a
+   chip strip over the map, one compact dock bar at the bottom. */
+#app, .screen { height: 100%; }
+#game { display: grid; grid-template-columns: minmax(0, 1fr) clamp(296px, 23vw, 340px); grid-template-rows: 46px minmax(0, 1fr);
+  grid-template-areas: "top top" "stage side"; background: var(--bg); }
+
+/* ---------- topbar ---------- */
+.topbar { grid-area: top; display: flex; align-items: center; gap: 10px; padding: 0 12px; border-bottom: 1px solid var(--line);
+  background: var(--panel-solid); z-index: 5; }
+.brand { font: 600 17px var(--font-serif); letter-spacing: .02em; display: flex; align-items: center; gap: 7px; white-space: nowrap; }
+.brand .ic { width: 20px; height: 20px; color: var(--brass); }
+.topbar .grow { flex: 1; }
+.room-chip { display: inline-flex; align-items: center; gap: 7px; padding: 4px 10px; border: 1px dashed var(--line-2); border-radius: 999px;
+  background: transparent; color: var(--text-2); font: 600 12.5px var(--font-mono); letter-spacing: .12em; }
+.room-chip:hover { border-color: var(--brass); color: var(--text); }
+.stat { display: flex; flex-direction: column; line-height: 1.1; align-items: center; min-width: 44px; }
+.stat b { font: 700 15px var(--font-ui); font-variant-numeric: tabular-nums; }
+.stat span { font-size: 9.5px; text-transform: uppercase; letter-spacing: .09em; color: var(--muted); }
+.conn { width: 9px; height: 9px; border-radius: 50%; background: var(--warn); box-shadow: 0 0 0 3px color-mix(in srgb, var(--warn) 25%, transparent); }
+.conn.open { background: var(--ok); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ok) 25%, transparent); }
+.conn.closed { background: var(--danger); box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 25%, transparent); }
+.side-toggle { display: none; }
+
+/* ---------- stage: the map, full bleed ---------- */
+.stage { grid-area: stage; position: relative; overflow: hidden; min-width: 0; container-type: inline-size; container-name: stage; }
+#board-host { position: absolute; inset: 0; }
+
+.stage-top { position: absolute; top: 10px; left: 10px; right: 10px; display: flex; gap: 10px; align-items: flex-start; pointer-events: none; z-index: 3; }
+.stage-top > * { pointer-events: auto; }
+.hint { margin: 0 auto; padding: 7px 15px; border-radius: 999px; background: var(--panel); border: 1px solid var(--line-2); box-shadow: var(--shadow);
+  font: 600 13.5px var(--font-serif); display: flex; align-items: center; gap: 9px; max-width: min(540px, 62vw); text-align: center; }
+.hint.mine { border-color: var(--brass); box-shadow: var(--shadow), 0 0 0 3px color-mix(in srgb, var(--brass) 22%, transparent); }
+.hint .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex: none; }
+.hint.mine .dot { background: var(--brass); animation: beat 1.4s ease-in-out infinite; }
+@keyframes beat { 50% { transform: scale(1.5); opacity: .5; } }
+.zoom { position: absolute; right: 10px; top: 60px; display: flex; flex-direction: column; gap: 5px; z-index: 3; }
+
+/* ---------- players: side list (desktop) / chip strip (mobile) ---------- */
+.side { grid-area: side; display: flex; flex-direction: column; min-height: 0; border-left: 1px solid var(--line); background: var(--bg-2); }
+.side-players { display: flex; flex-direction: column; gap: 6px; padding: 8px 8px 6px; border-bottom: 1px solid var(--line); background: var(--bg-2); }
+.side-tabs { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+.players-chips { display: none; }
+
+/* ---------- dock: hand + actions over the map bottom ---------- */
+.dock { position: absolute; left: 0; right: 0; margin: 0 auto; width: fit-content; bottom: 10px; z-index: 4; display: flex; gap: 10px; align-items: center;
+  padding: 7px 9px; border-radius: var(--radius-lg); background: var(--panel); border: 1px solid var(--line-2); box-shadow: var(--shadow); max-width: calc(100% - 16px); }
+.dock .hand { display: flex; gap: 5px; }
+.dock .actions { display: flex; gap: 5px; align-items: stretch; flex-wrap: wrap; justify-content: flex-end; }
+.dock .sep { width: 1px; background: var(--line); margin: 2px 0; align-self: stretch; }
+@container stage (max-width: 1080px) {
+  .dock { gap: 7px; }
+  .dock .rcard { width: auto; flex-direction: row; gap: 5px; padding: 4px 9px 4px 7px; border-top-width: 1px; border-left: 3px solid currentColor; }
+  .dock .rcard small { display: none; }
+  .dock .rcard .ic { width: 18px; height: 18px; }
+  .dock .rcard b { font-size: 16px; }
+  .abtn { min-width: 54px; padding: 5px 6px 4px; font-size: 11px; }
+}
+
+/* ---------- responsive ---------- */
+@media (max-width: 860px) {
+  #game { grid-template-columns: 1fr; grid-template-rows: 40px minmax(0, 1fr); grid-template-areas: "top" "stage"; }
+  .topbar { gap: 5px; padding: 0 6px; }
+  .brand { font-size: 14px; gap: 4px; }
+  .brand .ic { width: 17px; height: 17px; }
+  .room-chip { padding: 3px 6px; gap: 3px; font-size: 10.5px; letter-spacing: .06em; }
+  .topbar .btn { width: 30px; height: 30px; min-width: 30px; padding: 4px; }
+  .topbar .btn .ic { width: 16px; height: 16px; }
+  .stat.hide-sm, .brand span:not(.ic) { display: none; }
+  .side { position: fixed; top: 40px; right: 0; bottom: 0; width: min(360px, 94vw); z-index: 30; transform: translateX(102%);
+    transition: transform .28s var(--ease); box-shadow: var(--shadow); }
+  .side.open { transform: none; }
+  .side-toggle { display: inline-flex !important; }
+  .side-players { display: none; }
+
+  /* Players float over the map as one compact strip: a fixed four-column
+     grid so all seats always fit without horizontal scrolling (320px too). */
+  .players-chips { position: absolute; top: 4px; left: 4px; right: 4px; z-index: 3; display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; max-width: 100%; overflow: hidden; }
+
+  .stage-top { top: 40px; left: 4px; right: 4px; gap: 4px; }
+  .hint { order: 2; font-size: 10.5px; line-height: 1.2; padding: 5px 7px; gap: 4px; max-width: 62%; border-radius: 9px; margin: 0; flex: 1; }
+  .hint .dot { width: 6px; height: 6px; }
+  .dice { order: 1; padding: 4px 5px; gap: 4px; border-radius: 8px; }
+  .die { width: 21px; height: 21px; padding: 3px; gap: 1px; }
+  .dice-total { font-size: 15px; min-width: 17px; }
+  .zoom { top: 4px; right: 4px; gap: 3px; flex-direction: row; }
+  .zoom .btn { width: 28px; height: 28px; min-width: 28px; }
+
+  /* One slim dock: mini resource cards + icon actions. */
+  .dock { left: 4px; right: 4px; bottom: max(4px, env(safe-area-inset-bottom)); width: auto; max-width: none; margin: 0; padding: 4px;
+    border-radius: 10px; flex-direction: column; align-items: stretch; gap: 4px; }
+  .dock .sep { display: none; }
+  .dock .hand { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 3px; width: 100%; }
+  .dock .rcard { display: flex; flex-direction: row; align-items: center; justify-content: center; gap: 4px; width: auto; min-width: 0;
+    padding: 4px 2px; border-left: 0; border-top: 2px solid currentColor; border-radius: 7px; }
+  .dock .rcard small { display: none; }
+  .dock .rcard .ic { width: 15px; height: 15px; }
+  .dock .rcard b { font-size: 14px; line-height: 1; }
+  .dock .actions { display: grid; grid-template-columns: repeat(auto-fit, minmax(42px, 1fr)); gap: 3px; width: 100%; }
+  .abtn { min-width: 0; min-height: 36px; padding: 3px 2px; gap: 1px; border-radius: 7px; font-size: 0; }
+  .abtn .ic { width: 18px; height: 18px; }
+  .abtn .cost { display: none; }
+  .abtn.go { min-width: 0; }
+  .abtn .badge { font-size: 9px; min-width: 14px; height: 14px; line-height: 14px; top: -3px; right: -2px; }
+}
