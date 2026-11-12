@@ -220,6 +220,49 @@ def _jf2(v):
     return getattr(v, "value", v)
 
 
+def apply_cult_price(g, price_exit: float, price_step: float, dbg) -> None:
+    """Runtime-обёртка A1 над модом (только лаборатория; игровые файлы не меняются).
+
+    Цена вычитается из оценки purify_hex у культистов при рискованном остатке:
+    score_after ≤ 0 → price_exit; score_after == 1 → price_step.
+    Дополнительно инструментируются переходы стороны (в трассу).
+    """
+    from mods_pack import BlightMod
+    mod = next((p for p in g._plugins if isinstance(p, BlightMod)), None)
+    if mod is None:
+        raise RuntimeError("cult-price requires the blight mod")
+    orig_score = mod.score_ai_action
+    orig_change = mod._change_alignment
+
+    def priced(game_, pid, action, context=None):
+        base = orig_score(game_, pid, action, context)
+        if action.type != "purify_hex" or base is None:
+            return base
+        st = mod._player_blight_state(game_, pid)
+        if str(st.get("alignment")) != "cult":
+            return base
+        after = int(st.get("alignment_score", 0)) - 1
+        if after <= 0 and price_exit:
+            dbg.emit_alignment_event("priced_exit", pid, int(game_.global_turn), after)
+            return base - price_exit
+        if after == 1 and price_step:
+            dbg.emit_alignment_event("priced_step", pid, int(game_.global_turn), after)
+            return base - price_step
+        return base
+
+    def tracked(game_, pid, delta):
+        before = str(mod._player_blight_state(game_, pid).get("alignment", "neutral"))
+        result = orig_change(game_, pid, delta)
+        after = str(result)
+        if before != after:
+            dbg.emit_alignment_event("transition", pid, int(game_.global_turn), None,
+                                     before=before, after=after, delta=int(delta))
+        return result
+
+    mod.score_ai_action = priced
+    mod._change_alignment = tracked
+
+
 def apply_bot_step(g) -> bool:
     """Один шаг бота/движка; False — ход человека или игра окончена."""
     if g.phase in (GamePhase.LOBBY, GamePhase.FINISHED):
@@ -429,6 +472,8 @@ def main() -> None:
     ap.add_argument("--human-seat", type=int, default=0, dest="human_seat",
                     help="место человека (0..3): до добавления человека ставится N ботов")
     ap.add_argument("--bots", default=",".join(UI_DEFAULT_BOTS))
+    ap.add_argument("--cult-price", default=None, dest="cult_price",
+                    help="условная цена 'exit,step' (runtime-обёртка, только лаборатория)")
     ap.add_argument("--max-steps", type=int, default=5000)
     ap.add_argument("--summary-only", action="store_true")
     ap.add_argument("--label", default=None)
@@ -465,6 +510,11 @@ def main() -> None:
     label = args.label or f"{room}_{'auto' if args.auto else 'human@' + str(human_seat)}"
     dbg = AIDebugger(g, out, label=label, summary_only=args.summary_only)
     g._lab_debugger = dbg
+    if args.cult_price:
+        pe, ps = (float(x) for x in args.cult_price.split(","))
+        apply_cult_price(g, pe, ps, dbg)
+        dbg._emit("experiment_arm", price_exit=pe, price_step=ps, human_seat=human_seat)
+        print(f"A-обёртка: exit={pe} step={ps}, человек на месте {human_seat} (pid {human_pid})", flush=True)
     g.start_game()
     dbg.drain_journal()
 
