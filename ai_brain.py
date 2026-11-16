@@ -49,6 +49,14 @@ from isles_core import (
     TerrainType,
 )
 
+from trade_intelligence import (
+    FEATURE_ORDER as TRADE_FEATURE_ORDER,
+    MODEL_VERSION as TRADE_MODEL_VERSION,
+    ZERO_VARIANCE_FEATURES as TRADE_ZERO_VARIANCE_FEATURES,
+    features_from_state as trade_features_from_state,
+    infer as infer_trade_any_acceptance,
+)
+
 RESOURCE_ORDER = (
     Resource.WOOD,
     Resource.CLAY,
@@ -1348,6 +1356,52 @@ class BotBrain:
         risk_factor = max(0.2, 2.0 - self.personality.risk)
         return min(8.0, (total - 6) * 0.85 * risk_factor)
 
+    def _trade_prediction_context(self, goal: Optional[Goal], opponent_ids: list[int]) -> dict[str, Any]:
+        """Build the frozen model context from proposer-visible state only.
+
+        Opponent resource composition, private goals, private VP and bot profiles
+        are deliberately never read. Visible production is filtered by this
+        brain's own fog-of-war view.
+        """
+        player = self._player()
+        visible_production = self._visible_production_by_player()
+        opponents = []
+        for oid in opponent_ids:
+            opponent = self.game.players[oid]
+            raw_production = visible_production.get(
+                oid, {resource: 0.0 for resource in RESOURCE_ORDER}
+            )
+            normalized_production = {
+                str(getattr(resource, "value", resource)): float(amount)
+                for resource, amount in raw_production.items()
+            }
+            opponents.append(
+                {
+                    "total_res": int(getattr(opponent, "total_resources", 0)),
+                    "public_vp": self._vp(oid, public=True),
+                    "visible_production": normalized_production,
+                }
+            )
+
+        return {
+            "hand": player.resources,
+            "goal_kind": getattr(goal, "kind", None),
+            "goal_needed": getattr(goal, "needed", {}) or {},
+            "own_vp": self._my_vp(),
+            "opponents": opponents,
+            "global_turn": int(getattr(self.game, "global_turn", 0)),
+            "personal_turn": int(getattr(player, "personal_turns_taken", 0)),
+            "revealed_hexes": len(getattr(player, "revealed_hexes", set())),
+            "points_to_win": int(getattr(self.game, "points_to_win", 12)),
+        }
+
+    def _estimate_any_opponent_acceptance(
+        self, give: dict, want: dict, context: dict[str, Any]
+    ) -> tuple[float, list[float]]:
+        """Predict whether at least one opponent accepts using model v23.2."""
+        features = trade_features_from_state(give=give, want=want, **context)
+        return infer_trade_any_acceptance(features), features
+
     def _estimate_opponent_acceptance(self, oid: int, give: dict, want: dict) -> float:
         give_map = self._normalise_resource_map(give)
         want_map = self._normalise_resource_map(want)
@@ -1444,6 +1498,10 @@ class BotBrain:
             if p.player_id != self.pid and p.connected
         ]
         leader = self._leader_id()
+        prediction_context = self._trade_prediction_context(goal, others)
+        diag["model_version"] = TRADE_MODEL_VERSION
+        diag["feature_count"] = len(TRADE_FEATURE_ORDER)
+        diag["zero_variance_features"] = list(TRADE_ZERO_VARIANCE_FEATURES)
 
         for act in legal_actions:
             if act.type != "propose_trade":
@@ -1478,30 +1536,69 @@ class BotBrain:
             if gain < min_gain:
                 continue
 
-            probabilities = {
+                if not others:
+                continue
+
+            any_accept, model_features = self._estimate_any_opponent_acceptance(
+                give, want, prediction_context
+            )
+
+            # Keep the previous coarse per-opponent signal only for the
+            # pre-existing anti-leader penalty. It is NOT used as the any-accept
+            # probability or the trade acceptance gate.
+            legacy_probabilities = {
                 oid: self._estimate_opponent_acceptance(oid, give, want)
                 for oid in others
             }
-            if not probabilities:
-                continue
-
-            any_accept = 1.0 - math.prod(1.0 - q for q in probabilities.values())
+            legacy_any_accept = 1.0 - math.prod(
+                1.0 - probability for probability in legacy_probabilities.values()
+            )
             self._p2p_pred_cache()[self._trade_key(give, want)] = float(any_accept)
 
             leader_help = 0.0
-            if leader is not None and probabilities.get(leader, 0.0) > 0:
+            if leader is not None and legacy_probabilities.get(leader, 0.0) > 0:
                 leader_help = 0.8 if self._vp(leader, True) >= target_vp - 2 else 0.2
 
-            if any_accept < self.tuning.trade_player_min_acceptance:
+            accepted_by_gate = any_accept >= self.tuning.trade_player_min_acceptance
+            candidate_debug = {
+                "give": {
+                    getattr(resource, "value", str(resource)): int(amount)
+                    for resource, amount in give.items() if amount
+                },
+                "want": {
+                    getattr(resource, "value", str(resource)): int(amount)
+                    for resource, amount in want.items() if amount
+                },
+                "gain": round(float(gain), 5),
+                "model_version": TRADE_MODEL_VERSION,
+                "pred_any_accept": round(float(any_accept), 7),
+                "legacy_pred_any_accept": round(float(legacy_any_accept), 7),
+                "acceptance_gate": round(
+                    float(self.tuning.trade_player_min_acceptance), 5
+                ),
+                "accepted_by_gate": bool(accepted_by_gate),
+                "leader_help_penalty": round(float(leader_help), 5),
+                "features": {
+                    name: round(float(value), 8)
+                    for name, value in zip(TRADE_FEATURE_ORDER, model_features)
+                },
+            }
+            diag["candidates"].append(candidate_debug)
+
+            if not accepted_by_gate:
                 continue
 
             score = gain * (0.35 + 0.65 * any_accept) - leader_help
+            candidate_debug["score"] = round(float(score), 5)
             if score <= 0.25:
+                candidate_debug["rejected_by_score"] = True
                 continue
 
             if best is None or score > best.score:
                 best = ScoredAction(
-                    act, score, f"P2P gain={gain:.2f}, acceptance≈{any_accept:.2f}"
+                    act, score,
+                    f"P2P gain={gain:.2f}, acceptance≈{any_accept:.2f} "
+                    f"({TRADE_MODEL_VERSION})"
                 )
 
         return best
