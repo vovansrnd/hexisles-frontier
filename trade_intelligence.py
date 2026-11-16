@@ -86,6 +86,22 @@ def _resource_map(values: Optional[Mapping]) -> dict[str, int]:
     return out
 
 
+def _production_map(values: Optional[Mapping]) -> dict[str, float]:
+    """Normalize visible production without truncating fractional values."""
+    out = {resource: 0.0 for resource in RESOURCES}
+    for raw_key, raw_value in (values or {}).items():
+        key = str(getattr(raw_key, "value", raw_key))
+        if key not in out:
+            continue
+        try:
+            value = float(raw_value)
+        except (TypeError, ValueError):
+            continue
+        if math.isfinite(value) and value > 0.0:
+            out[key] += value
+    return out
+
+
 def features_from_state(
     *,
     hand: Mapping,
@@ -121,7 +137,7 @@ def features_from_state(
     opponent_totals = [int(item.get("total_res", 0)) for item in opponents]
     opponent_vps = [int(item.get("public_vp", 0)) for item in opponents]
     opponent_production = [
-        _resource_map(item.get("visible_production") or {}) for item in opponents
+        _production_map(item.get("visible_production") or {}) for item in opponents
     ]
     production_want = [
         float(prod.get(want_resource, 0.0)) if want_resource else 0.0
