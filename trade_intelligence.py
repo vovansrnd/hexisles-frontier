@@ -9,12 +9,20 @@ Never pass opponents' private resource maps, private goals, brains, or genomes.
 """
 from __future__ import annotations
 
+import json
 import math
+from pathlib import Path
 from typing import Iterable, Mapping, Optional, Sequence
 
-MODEL_VERSION = "trade-any-accept-logreg-v23.2"
-TRAINING_DATA = "480 no-blight games; seeds 61001-61020; 24 seat permutations; 19995 offers"
-REGULARIZATION = {"type": "L2", "lambda": 1.0, "intercept_regularized": False}
+_ARTIFACT_PATH = Path(__file__).with_name("trade_intelligence_model_v23_2.json")
+try:
+    MODEL_ARTIFACT = json.loads(_ARTIFACT_PATH.read_text(encoding="utf-8"))
+except (OSError, json.JSONDecodeError) as exc:
+    raise RuntimeError(f"Cannot load trade model artifact: {_ARTIFACT_PATH}") from exc
+
+MODEL_VERSION = f"trade-any-accept-logreg-{MODEL_ARTIFACT['version']}"
+TRAINING_DATA = MODEL_ARTIFACT["data"]
+REGULARIZATION = dict(MODEL_ARTIFACT["regularization"])
 
 RESOURCES = ("wood", "clay", "grain", "wool", "ore")
 GOAL_KINDS = ("city", "settlement", "road", "charter", "idle")
@@ -38,53 +46,28 @@ FEATURE_ORDER = (
     + ["turn_div100", "personal_turn_div30"]
 )
 
-COEFFICIENTS = (
-    0.01287259, 0.08445572, 0.11480038, -0.34426758, 0.20875921,
-    -0.07518477, -0.05995382, 0.02371342, 0.09236738, 0.09149936,
-    0.0,
-    -0.18672943, -0.07639123, 0.05054338, 0.02829354, 0.01462293, -0.08296213,
-    -0.01177004, -0.02942250, 0.04093843, 0.0, 0.0, 0.00459106,
-    0.22027233, 0.09342462, -0.04337918,
-    0.03475506, 0.05420195, 0.06712182, 0.06012564,
-    -0.26064623, 0.24407134, 0.02439581,
-    0.22799851, 0.10095082, 0.15996012, -0.36008615, 0.01810397,
-    0.39540517, -0.40362767,
+if MODEL_ARTIFACT.get("feature_order") != list(FEATURE_ORDER):
+    raise RuntimeError("Trade model artifact feature order does not match implementation")
+
+COEFFICIENTS = tuple(float(value) for value in MODEL_ARTIFACT["coefficients"])
+INTERCEPT = float(MODEL_ARTIFACT["intercept"])
+FEATURE_MEAN = tuple(
+    float(value) for value in MODEL_ARTIFACT["standardization"]["mu"]
 )
-
-INTERCEPT = -1.47094218
-
-FEATURE_MEAN = (
-    0.23215804, 0.16974244, 0.14603651, 0.28542136, 0.16664166,
-    0.28272068, 0.34753688, 0.17564391, 0.06391598, 0.13018255,
-    0.0,
-    0.97249312, 0.72053013, 1.45976494, 1.00600150, 1.04971243, 5.20850213,
-    0.22740685, 0.42595649, 0.34663666, 0.0, 0.0, 1.39869967,
-    4.54043511, 2.04631158, 0.01965491,
-    5.62132200, 3.44916229, 7.85646412, 2.30452613,
-    4.54960407, 5.73433358, 0.12283071,
-    19.92893223, 11.30157539, 2.52108027, 15.02215554, 20.60660165,
-    0.48483971, 0.41670751,
+FEATURE_SCALE = tuple(
+    float(value) for value in MODEL_ARTIFACT["standardization"]["sd"]
 )
-
-FEATURE_SCALE = (
-    0.42220929, 0.37540637, 0.35314282, 0.45161489, 0.37265563,
-    0.45032177, 0.47618799, 0.38051692, 0.24460320, 0.33650416,
-    1.0,
-    1.17311023, 1.13094468, 1.43639648, 1.18819904, 1.29071522, 2.17395245,
-    0.41915746, 0.49448717, 0.47589882, 1.0, 1.0, 0.48963072,
-    2.24839203, 1.06326780, 0.13881138,
-    1.87764723, 1.82548261, 2.91156692, 0.74288289,
-    1.99347935, 2.65648324, 0.37676502,
-    11.08629907, 6.34489081, 0.60455323, 10.26262099, 1.33394951,
-    0.27473904, 0.22865306,
+ZERO_VARIANCE_FEATURES = tuple(
+    MODEL_ARTIFACT["standardization"]["sd_zero_variance_features"]
 )
-
-ZERO_VARIANCE_FEATURES = ("same_res", "goal_charter", "goal_idle")
 
 assert len(FEATURE_ORDER) == 40
 assert len(COEFFICIENTS) == len(FEATURE_ORDER)
 assert len(FEATURE_MEAN) == len(FEATURE_ORDER)
 assert len(FEATURE_SCALE) == len(FEATURE_ORDER)
+
+
+
 
 
 def _resource_map(values: Optional[Mapping]) -> dict[str, int]:
@@ -224,4 +207,6 @@ def model_metadata() -> dict:
         "feature_order": list(FEATURE_ORDER),
         "zero_variance_features": list(ZERO_VARIANCE_FEATURES),
         "regularization": dict(REGULARIZATION),
+        "cv_metrics_oof": dict(MODEL_ARTIFACT.get("cv_metrics_oof", {})),
+        "artifact_file": _ARTIFACT_PATH.name,
     }
