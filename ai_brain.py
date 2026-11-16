@@ -1601,6 +1601,15 @@ class BotBrain:
                     f"({TRADE_MODEL_VERSION})"
                 )
 
+        if best is None:
+            diag["status"] = "no_candidate"
+            return None
+        diag["status"] = "selected"
+        diag["selected_score"] = round(float(best.score), 5)
+        diag["selected_action"] = {
+            "type": best.action.type,
+            "params": dict(best.action.p),
+        }
         return best
 
     def respond_to_trade(self, offer: Any) -> bool:
