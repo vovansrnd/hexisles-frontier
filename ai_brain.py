@@ -1498,6 +1498,9 @@ class BotBrain:
             if p.player_id != self.pid and p.connected
         ]
         leader = self._leader_id()
+        if not others:
+            diag["status"] = "no_opponents"
+            return None
         prediction_context = self._trade_prediction_context(goal, others)
         diag["model_version"] = TRADE_MODEL_VERSION
         diag["feature_count"] = len(TRADE_FEATURE_ORDER)
@@ -1534,9 +1537,6 @@ class BotBrain:
                 min_gain = self.tuning.panic_trade_floor
 
             if gain < min_gain:
-                continue
-
-                if not others:
                 continue
 
             any_accept, model_features = self._estimate_any_opponent_acceptance(
