@@ -89,6 +89,15 @@ def test_feature_builder_normalizes_enum_keys_and_uses_public_opponent_fields():
     assert by_name["personal_turn_div30"] == pytest.approx(17.0 / 30.0)
 
 
+def test_visible_production_preserves_fractional_values():
+    state = sample_state()
+    state["opponents"][1]["visible_production"]["ore"] = 0.25
+    features = features_from_state(**state)
+    by_name = dict(zip(FEATURE_ORDER, features))
+    assert by_name["prod_want_sum"] == pytest.approx(6.25)
+    assert by_name["prod_want_who"] == 3.0
+
+
 def test_unseen_or_private_opponent_fields_are_not_consumed():
     state = sample_state()
     features_before = features_from_state(**state)
