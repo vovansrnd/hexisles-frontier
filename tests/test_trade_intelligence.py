@@ -4,6 +4,7 @@ from enum import Enum
 import math
 import pytest
 
+from ai_brain import StrategyGenome, _player_trade_score
 from trade_intelligence import (
     COEFFICIENTS,
     FEATURE_MEAN,
@@ -140,3 +141,39 @@ def test_feature_builder_does_not_mutate_inputs():
     snapshot = repr(state)
     features_from_state(**state)
     assert repr(state) == snapshot
+
+
+def test_default_trade_score_preserves_v23_2_formula():
+    tuning = StrategyGenome()
+    assert tuning.trade_player_score_probability_weight == pytest.approx(0.65)
+    assert tuning.trade_player_score_floor == pytest.approx(0.25)
+    assert tuning.trade_player_leader_help_weight == pytest.approx(1.0)
+
+    gain, probability, leader_help = 3.5, 0.319, 0.2
+    actual = _player_trade_score(
+        gain,
+        probability,
+        leader_help,
+        probability_weight=tuning.trade_player_score_probability_weight,
+        leader_penalty_weight=tuning.trade_player_leader_help_weight,
+    )
+    expected = gain * (0.35 + 0.65 * probability) - leader_help
+    assert actual == pytest.approx(expected, abs=1e-12)
+
+
+def test_trade_score_controls_separate_probability_and_leader_terms():
+    gain, probability, leader_help = 3.5, 0.319, 0.2
+
+    default_score = _player_trade_score(
+        gain, probability, leader_help,
+        probability_weight=0.65,
+        leader_penalty_weight=1.0,
+    )
+    gain_primary_score = _player_trade_score(
+        gain, probability, leader_help,
+        probability_weight=0.25,
+        leader_penalty_weight=0.0,
+    )
+
+    assert gain_primary_score > default_score
+    assert gain_primary_score == pytest.approx(gain * (0.75 + 0.25 * probability))
