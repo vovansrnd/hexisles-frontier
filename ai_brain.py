@@ -134,6 +134,10 @@ class StrategyGenome:
 
     trade_bank_min_gain: float = 1.10
     trade_player_min_acceptance: float = 0.34
+    # Independent P2P offer-score controls. Defaults preserve v23.2 behaviour.
+    trade_player_score_probability_weight: float = 0.65
+    trade_player_score_floor: float = 0.25
+    trade_player_leader_help_weight: float = 1.0
     panic_trade_floor: float = -0.15
 
     road_open_spot_bonus: float = 4.7
@@ -242,6 +246,28 @@ class ScoredAction:
     action: Action
     score: float
     reason: str = ""
+
+
+def _player_trade_score(
+    gain: float,
+    acceptance_probability: float,
+    leader_help_penalty: float,
+    *,
+    probability_weight: float = 0.65,
+    leader_penalty_weight: float = 1.0,
+) -> float:
+    """Score a P2P offer with independently tunable risk and anti-leader terms.
+
+    At the defaults this is exactly the v23.2 formula:
+    ``gain * (0.35 + 0.65 * p) - leader_help``.
+    """
+    probability_weight = max(0.0, min(1.0, float(probability_weight)))
+    leader_penalty_weight = max(0.0, float(leader_penalty_weight))
+    return (
+        float(gain)
+        * (1.0 - probability_weight + probability_weight * float(acceptance_probability))
+        - float(leader_help_penalty) * leader_penalty_weight
+    )
 
 
 # Baseline profiles only. These are starting points, not a claim that the
@@ -1560,6 +1586,22 @@ class BotBrain:
                 leader_help = 0.8 if self._vp(leader, True) >= target_vp - 2 else 0.2
 
             accepted_by_gate = any_accept >= self.tuning.trade_player_min_acceptance
+            score_probability_weight = max(
+                0.0,
+                min(
+                    1.0,
+                    float(
+                        getattr(self.tuning, "trade_player_score_probability_weight", 0.65)
+                    ),
+                ),
+            )
+            leader_help_weight = max(
+                0.0,
+                float(getattr(self.tuning, "trade_player_leader_help_weight", 1.0)),
+            )
+            score_floor = float(
+                getattr(self.tuning, "trade_player_score_floor", 0.25)
+            )
             candidate_debug = {
                 "give": {
                     getattr(resource, "value", str(resource)): int(amount)
@@ -1578,6 +1620,9 @@ class BotBrain:
                 ),
                 "accepted_by_gate": bool(accepted_by_gate),
                 "leader_help_penalty": round(float(leader_help), 5),
+                "score_probability_weight": round(score_probability_weight, 5),
+                "leader_help_weight": round(leader_help_weight, 5),
+                "score_floor": round(score_floor, 5),
                 "features": {
                     name: round(float(value), 8)
                     for name, value in zip(TRADE_FEATURE_ORDER, model_features)
@@ -1588,9 +1633,15 @@ class BotBrain:
             if not accepted_by_gate:
                 continue
 
-            score = gain * (0.35 + 0.65 * any_accept) - leader_help
+            score = _player_trade_score(
+                gain,
+                any_accept,
+                leader_help,
+                probability_weight=score_probability_weight,
+                leader_penalty_weight=leader_help_weight,
+            )
             candidate_debug["score"] = round(float(score), 5)
-            if score <= 0.25:
+            if score <= score_floor:
                 candidate_debug["rejected_by_score"] = True
                 continue
 
