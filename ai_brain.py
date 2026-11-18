@@ -134,11 +134,6 @@ class StrategyGenome:
 
     trade_bank_min_gain: float = 1.10
     trade_player_min_acceptance: float = 0.34
-    # Independent P2P offer-score controls. Defaults preserve v23.2 behaviour.
-    trade_player_score_probability_weight: float = 0.65
-    trade_player_score_probability_source: str = "model"
-    trade_player_score_floor: float = 0.25
-    trade_player_leader_help_weight: float = 1.0
     panic_trade_floor: float = -0.15
 
     road_open_spot_bonus: float = 4.7
@@ -149,6 +144,13 @@ class StrategyGenome:
 
     endgame_vp_threshold: int = 7
     endgame_aggression_bonus: float = 1.4
+
+    # Appended to preserve the positional constructor order of legacy fields.
+    # Defaults preserve v23.2 scoring; these controls are experimental.
+    trade_player_score_probability_weight: float = 0.65
+    trade_player_score_probability_source: str = "model"
+    trade_player_score_floor: float = 0.25
+    trade_player_leader_help_weight: float = 1.0
 
     # Переходные алиасы к новой схеме имён.
     @property
