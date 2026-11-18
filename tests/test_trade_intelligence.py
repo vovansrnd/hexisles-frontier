@@ -184,6 +184,20 @@ def test_trade_score_controls_separate_probability_and_leader_terms():
     assert gain_primary_score > default_score
     assert gain_primary_score == pytest.approx(gain * (0.75 + 0.25 * probability))
 
+    # Weight 0 removes p from the score entirely; it does not leave a 0.35 floor.
+    no_probability_score = _player_trade_score(
+        gain, probability, leader_help,
+        probability_weight=0.0,
+        leader_penalty_weight=0.0,
+    )
+    full_probability_score = _player_trade_score(
+        gain, probability, leader_help,
+        probability_weight=1.0,
+        leader_penalty_weight=0.0,
+    )
+    assert no_probability_score == pytest.approx(gain)
+    assert full_probability_score == pytest.approx(gain * probability)
+
 def test_score_probability_source_is_separate_from_model_gate_probability():
     model_p = 0.319
     legacy_p = 0.645
