@@ -251,6 +251,9 @@ class ScoredAction:
     reason: str = ""
 
 
+# Stage 2.5 A0x (seeds 63001-63020, 19,016 offers):
+# P(accept | legacy_raw) = sigmoid(0.640249 * logit(legacy_raw) - 1.618956).
+# The inverse is used only to put the model estimate on the historical score scale.
 _LEGACY_SCORE_SCALE_PLATT_SLOPE = 0.6402491392924269
 _LEGACY_SCORE_SCALE_PLATT_INTERCEPT = -1.6189560737983912
 
