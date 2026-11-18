@@ -152,6 +152,7 @@ def test_feature_builder_does_not_mutate_inputs():
 def test_default_trade_score_preserves_v23_2_formula():
     tuning = StrategyGenome()
     assert tuning.trade_player_score_probability_weight == pytest.approx(0.65)
+    assert tuning.trade_player_score_probability_source == "model"
     assert tuning.trade_player_score_floor == pytest.approx(0.25)
     assert tuning.trade_player_leader_help_weight == pytest.approx(1.0)
 
@@ -197,6 +198,7 @@ def test_trade_score_controls_separate_probability_and_leader_terms():
     )
     assert no_probability_score == pytest.approx(gain)
     assert full_probability_score == pytest.approx(gain * probability)
+
 
 def test_score_probability_source_is_separate_from_model_gate_probability():
     model_p = 0.319
