@@ -4,7 +4,13 @@ from enum import Enum
 import math
 import pytest
 
-from ai_brain import StrategyGenome, _player_trade_score
+from ai_brain import (
+    StrategyGenome,
+    _player_trade_score,
+    _trade_score_probability,
+    _LEGACY_SCORE_SCALE_PLATT_SLOPE,
+    _LEGACY_SCORE_SCALE_PLATT_INTERCEPT,
+)
 from trade_intelligence import (
     COEFFICIENTS,
     FEATURE_MEAN,
@@ -177,3 +183,36 @@ def test_trade_score_controls_separate_probability_and_leader_terms():
 
     assert gain_primary_score > default_score
     assert gain_primary_score == pytest.approx(gain * (0.75 + 0.25 * probability))
+
+def test_score_probability_source_is_separate_from_model_gate_probability():
+    model_p = 0.319
+    legacy_p = 0.645
+
+    assert _trade_score_probability(model_p, legacy_p, source="model") == pytest.approx(model_p)
+    assert _trade_score_probability(model_p, legacy_p, source="legacy_raw") == pytest.approx(legacy_p)
+
+    legacy_scale = _trade_score_probability(
+        model_p, legacy_p, source="model_legacy_scale"
+    )
+    calibrated_back = 1.0 / (
+        1.0
+        + math.exp(
+            -(
+                _LEGACY_SCORE_SCALE_PLATT_SLOPE
+                * math.log(legacy_scale / (1.0 - legacy_scale))
+                + _LEGACY_SCORE_SCALE_PLATT_INTERCEPT
+            )
+        )
+    )
+    assert calibrated_back == pytest.approx(model_p, abs=1e-10)
+
+    # The acceptance gate is deliberately evaluated from the model output,
+    # regardless of which value is selected for the offer-score multiplier.
+    gate = 0.34
+    assert (model_p >= gate) is False
+    assert (_trade_score_probability(model_p, legacy_p, source="legacy_raw") >= gate) is True
+
+
+def test_invalid_score_probability_source_is_rejected():
+    with pytest.raises(ValueError):
+        _trade_score_probability(0.2, 0.7, source="unknown")
