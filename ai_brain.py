@@ -136,6 +136,7 @@ class StrategyGenome:
     trade_player_min_acceptance: float = 0.34
     # Independent P2P offer-score controls. Defaults preserve v23.2 behaviour.
     trade_player_score_probability_weight: float = 0.65
+    trade_player_score_probability_source: str = "model"
     trade_player_score_floor: float = 0.25
     trade_player_leader_help_weight: float = 1.0
     panic_trade_floor: float = -0.15
@@ -246,6 +247,45 @@ class ScoredAction:
     action: Action
     score: float
     reason: str = ""
+
+
+_LEGACY_SCORE_SCALE_PLATT_SLOPE = 0.6402491392924269
+_LEGACY_SCORE_SCALE_PLATT_INTERCEPT = -1.6189560737983912
+
+
+def _trade_score_probability(
+    model_probability: float,
+    legacy_probability: float,
+    *,
+    source: str = "model",
+) -> float:
+    """Choose the probability scale used in P2P action scoring, not gating.
+
+    ``model`` uses frozen v23.2 probability.
+    ``legacy_raw`` uses the old uncalibrated legacy estimate.
+    ``model_legacy_scale`` maps v23.2 through the inverse of the Stage 2.5
+    Platt calibration fitted to legacy predictions, reproducing the legacy
+    score scale while preserving the model's ordering.
+
+    The acceptance gate must always continue to use ``model_probability``.
+    """
+    if source == "model":
+        value = float(model_probability)
+    elif source == "legacy_raw":
+        value = float(legacy_probability)
+    elif source == "model_legacy_scale":
+        p = max(1e-9, min(1.0 - 1e-9, float(model_probability)))
+        model_logit = math.log(p / (1.0 - p))
+        legacy_logit = (
+            model_logit - _LEGACY_SCORE_SCALE_PLATT_INTERCEPT
+        ) / _LEGACY_SCORE_SCALE_PLATT_SLOPE
+        value = 1.0 / (1.0 + math.exp(-max(-30.0, min(30.0, legacy_logit))))
+    else:
+        raise ValueError(
+            "trade_player_score_probability_source must be 'model', "
+            "'legacy_raw', or 'model_legacy_scale'"
+        )
+    return max(0.0, min(1.0, value))
 
 
 def _player_trade_score(
@@ -1586,6 +1626,14 @@ class BotBrain:
                 leader_help = 0.8 if self._vp(leader, True) >= target_vp - 2 else 0.2
 
             accepted_by_gate = any_accept >= self.tuning.trade_player_min_acceptance
+            score_probability_source = str(
+                getattr(self.tuning, "trade_player_score_probability_source", "model")
+            ).strip().lower()
+            score_probability = _trade_score_probability(
+                any_accept,
+                legacy_any_accept,
+                source=score_probability_source,
+            )
             score_probability_weight = max(
                 0.0,
                 min(
@@ -1620,6 +1668,8 @@ class BotBrain:
                 ),
                 "accepted_by_gate": bool(accepted_by_gate),
                 "leader_help_penalty": round(float(leader_help), 5),
+                "score_probability_source": score_probability_source,
+                "score_probability": round(score_probability, 7),
                 "score_probability_weight": round(score_probability_weight, 5),
                 "leader_help_weight": round(leader_help_weight, 5),
                 "score_floor": round(score_floor, 5),
@@ -1635,7 +1685,7 @@ class BotBrain:
 
             score = _player_trade_score(
                 gain,
-                any_accept,
+                score_probability,
                 leader_help,
                 probability_weight=score_probability_weight,
                 leader_penalty_weight=leader_help_weight,
@@ -1648,7 +1698,8 @@ class BotBrain:
             if best is None or score > best.score:
                 best = ScoredAction(
                     act, score,
-                    f"P2P gain={gain:.2f}, acceptance≈{any_accept:.2f} "
+                    f"P2P gain={gain:.2f}, gate_p≈{any_accept:.2f}, "
+                    f"score_p≈{score_probability:.2f} "
                     f"({TRADE_MODEL_VERSION})"
                 )
 
