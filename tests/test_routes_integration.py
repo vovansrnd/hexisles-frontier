@@ -331,9 +331,9 @@ class TradeRoutesIntegrationTests(unittest.TestCase):
                 "resource_weight": lambda resource, goal: 0.1,
                 "genes": {},
             }
-            return mod, game, action, context
+            return mod, game, action, context, routes
 
-        per_route_mod, per_route_game, action, context = build_case(False)
+        per_route_mod, per_route_game, action, context, per_route_routes = build_case(False)
         per_route_score = per_route_mod.score_ai_action(
             per_route_game, 0, action, context
         )
@@ -342,15 +342,33 @@ class TradeRoutesIntegrationTests(unittest.TestCase):
             -1e6,
             "per-route income makes a second same-resource route productive",
         )
+        per_route_game.players[0].ext["active_routes"].append(per_route_routes[1])
+        per_route_game.global_turn = 10
+        before = per_route_game.players[0].resources[Resource.GRAIN]
+        per_route_mod.on_turn_started(per_route_game, 0)
+        self.assertEqual(
+            per_route_game.players[0].resources[Resource.GRAIN] - before,
+            2,
+            "per-route income should pay each ready route, including same-resource routes",
+        )
 
-        capped_mod, capped_game, capped_action, capped_context = build_case(True)
+        capped_mod, capped_game, capped_action, capped_context, capped_routes = build_case(True)
         capped_score = capped_mod.score_ai_action(
             capped_game, 0, capped_action, capped_context
         )
         self.assertEqual(
             capped_score,
             -1e6,
-            "shared one-income-per-turn mode should not pay for a duplicate live commodity route",
+            "shared one-income-per-turn mode should not pay for a redundant live duplicate",
+        )
+        capped_game.players[0].ext["active_routes"] = capped_routes
+        capped_game.global_turn = 10
+        before = capped_game.players[0].resources[Resource.GRAIN]
+        capped_mod.on_turn_started(capped_game, 0)
+        self.assertEqual(
+            capped_game.players[0].resources[Resource.GRAIN] - before,
+            1,
+            "shared mode should pay only one route-income unit per owner turn",
         )
 
     def test_current_raider_marker_is_public_without_revealing_hidden_hex(self):
