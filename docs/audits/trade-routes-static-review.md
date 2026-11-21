@@ -79,8 +79,9 @@ separate income stream. Regression coverage checks both settings.
 - A rival building cutting an activated path: no further income and no bank
   discount.
 - Two configured suppression rounds covering the owner's next two turn starts.
-- Per-route income allowing a second route of the same commodity, while the
-  shared-income cap still rejects a redundant live duplicate.
+- Per-route income allowing a second route of the same commodity and paying
+  both ready routes, while the shared-income cap rejects a redundant live
+  duplicate and pays only one unit per owner turn.
 
 ## Remaining design questions — not changed in this patch
 
