@@ -1533,6 +1533,21 @@ class BlightMod:
             self._suspicion_cache[game] = cache
         return cache[1].get(owner_id, 0)
 
+    @staticmethod
+    def _rank_preserving_corrupt_score(raw_score: float) -> float:
+        """Compress overflow above the historical cap without erasing rank.
+
+        Scores at or below 3.5 are unchanged. Above 3.5, the raw utility is
+        mapped monotonically into a narrow 0.12-point band. This preserves the
+        existing target valuation (including the existing leader term) while
+        preventing the hard cap from turning distinct targets into exact ties.
+        """
+        cap = 3.5
+        if raw_score <= cap:
+            return float(raw_score)
+        overflow = float(raw_score) - cap
+        return cap + 0.12 * overflow / (1.0 + overflow)
+
     def score_ai_action(
         self, game: HexGame, player_id: int, action: Action, context: Optional[dict[str, Any]] = None
     ) -> Optional[float]:
@@ -1741,7 +1756,8 @@ class BlightMod:
         behind = int(context.get("my_vp", 0)) + 2 < int(context.get("leader_vp", 0))
         if behind:
             benefit *= 0.82
-        score = min(3.5, benefit * self.ai_corrupt_aggression * _context_gene(context, "blight.corrupt_bias") - 0.55 * wool_cost)
+        raw_score = benefit * self.ai_corrupt_aggression * _context_gene(context, "blight.corrupt_bias") - 0.55 * wool_cost
+        score = self._rank_preserving_corrupt_score(raw_score)
 
         # Avoid the costly purge/re-infect loop seen in timeout matches.
         # These are AI scoring penalties, not legality restrictions: a highly
