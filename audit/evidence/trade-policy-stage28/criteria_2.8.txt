@@ -1,0 +1,37 @@
+=== Шесть основных критериев протокола 2.8 ===
+  1. принятые офферы/партию (нижняя граница > 0): A0 9.738 → S1 10.556 | Δ +0.819 CI95 (-0.0646, 1.6437) | сидов +13/−7 | margin None → **FAIL**
+  2. поселения (non-inferior −0.25): A0 10.027 → S1 9.831 | Δ -0.196 CI95 (-0.6396, 0.2521) | сидов +9/−11 | margin -0.25 → **FAIL**
+  3. города (non-inferior −0.25): A0 9.525 → S1 9.404 | Δ -0.121 CI95 (-0.4729, 0.2021) | сидов +11/−9 | margin -0.25 → **FAIL**
+  4. сделка→постройка за 3 хода (non-inferior −0.50): A0 7.627 → S1 8.252 | Δ +0.625 CI95 (-0.1688, 1.3792) | сидов +14/−6 | margin -0.5 → **PASS**
+  5. финальные ОП/игрока (non-inferior −0.20): A0 8.520 → S1 8.405 | Δ -0.115 CI95 (-0.2943, 0.0609) | сидов +9/−11 | margin -0.2 → **FAIL**
+  6. QC (960/960, карты, no-blight) → PASS (см. выше)
+
+ИТОГО: 2/6 критериев PASS
+
+=== По архетипам (предложения/партию, accepted, доля) ===
+  A0 c3po: 10.4/партию, accepted 22.9% (n=4991)
+  A0 r2d2: 11.1/партию, accepted 21.1% (n=5340)
+  A0 t800: 9.8/партию, accepted 23.0% (n=4709)
+  A0 walle: 11.9/партию, accepted 23.1% (n=5736)
+  S1 c3po: 10.8/партию, accepted 23.7% (n=5191)
+  S1 r2d2: 11.6/партию, accepted 22.0% (n=5591)
+  S1 t800: 10.4/партию, accepted 25.0% (n=4991)
+  S1 walle: 12.2/партию, accepted 23.3% (n=5838)
+
+=== сделки → постройка по архетипам (за 3 хода, доля от принятых) ===
+Traceback (most recent call last):
+  File "<stdin>", line 142, in <module>
+NameError: name 'bd_events' is not defined
+Error in sys.excepthook:
+Traceback (most recent call last):
+  File "/usr/lib/python3/dist-packages/apport_python_hook.py", line 238, in partial_apport_excepthook
+    return apport_excepthook(binary, exc_type, exc_obj, exc_tb)
+  File "/usr/lib/python3/dist-packages/apport_python_hook.py", line 122, in apport_excepthook
+    report["ExecutableTimestamp"] = str(int(os.stat(binary).st_mtime))
+                                            ~~~~~~~^^^^^^^^
+FileNotFoundError: [Errno 2] No such file or directory: '/opt/MyApps/2424/terra-incognita-ui-v3/-'
+
+Original exception was:
+Traceback (most recent call last):
+  File "<stdin>", line 142, in <module>
+NameError: name 'bd_events' is not defined

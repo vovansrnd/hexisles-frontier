@@ -1,0 +1,66 @@
+{
+ "experiment": "stage28 — независимое подтверждение S1 (candidate_gate_legacy_scale)",
+ "arms": {
+  "A0": {
+   "code": "main @ 3590371",
+   "worktree": "/opt/MyApps/2424/hf-a0"
+  },
+  "S1": {
+   "code": "experiment/trade-policy-controls @ e861d59",
+   "worktree": "/opt/MyApps/2424/hf-tpc2",
+   "preset": "candidate_gate_legacy_scale",
+   "thresholds": {
+    "human": 0.121,
+    "merchant": 0.102,
+    "t800": 0.129,
+    "chaos": 0.118
+   },
+   "score_probability_source": "model_legacy_scale",
+   "applied_via": "trade_policy_experiments.apply_trade_policy_preset (official)"
+  }
+ },
+ "seeds": [
+  66001,
+  66002,
+  66003,
+  66004,
+  66005,
+  66006,
+  66007,
+  66008,
+  66009,
+  66010,
+  66011,
+  66012,
+  66013,
+  66014,
+  66015,
+  66016,
+  66017,
+  66018,
+  66019,
+  66020
+ ],
+ "seed_note": "диапазон 66001-66020 чист до запуска; прерванная первая попытка самозаняла 66001-66003 в собственной манифест-записи — данные удалены, пересечение с историей после очистки пусто",
+ "settings": {
+  "players": 4,
+  "fog": true,
+  "points_to_win": 12,
+  "difficulty": "skynet",
+  "fast_start": false,
+  "blight": false,
+  "routes": false
+ },
+ "games": {
+  "A0": 480,
+  "S1": 480
+ },
+ "criteria_verdict": {
+  "1_accepted_above_zero": "FAIL (Δ +0.819, CI −0.065…+1.644)",
+  "2_outposts_noninf_-0.25": "FAIL (Δ −0.196, CI −0.640…+0.252)",
+  "3_cities_noninf_-0.25": "FAIL (Δ −0.121, CI −0.473…+0.202)",
+  "4_build3own_noninf_-0.50": "PASS (Δ +0.625, CI −0.169…+1.379)",
+  "5_final_VP_noninf_-0.20": "FAIL (Δ −0.115, CI −0.294…+0.061)",
+  "6_QC": "PASS"
+ }
+}

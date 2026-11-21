@@ -1,0 +1,12 @@
+{
+ "games_completed": {
+  "A0": 480,
+  "S1": 480
+ },
+ "errors": 0,
+ "pairs_480": true,
+ "map_mismatches": 0,
+ "no_blight_violations": 0,
+ "incomplete_traces": 0,
+ "seeds": "66001-66020 (fresh, ledger-clean после удаления частичной попытки)"
+}
