@@ -1,0 +1,13 @@
+{
+ "games_completed": {
+  "A0": 480,
+  "A1": 480
+ },
+ "errors": 0,
+ "pairs_480": true,
+ "map_mismatches": 0,
+ "no_blight_violations": 0,
+ "trades_mod_missing": 0,
+ "plugin_errors": 0,
+ "seeds": "71001-71020 (fresh)"
+}

@@ -1,0 +1,50 @@
+{
+ "experiment": "stage32 — портфельная оценка Trade Routes (A0 9af21df vs A1 f1fff48)",
+ "arms": {
+  "A0": {
+   "code": "9af21df",
+   "worktree": "/opt/MyApps/2424/hf-tr0"
+  },
+  "A1": {
+   "code": "f1fff48",
+   "worktree": "/opt/MyApps/2424/hf-tr1"
+  }
+ },
+ "seeds": [
+  71001,
+  71002,
+  71003,
+  71004,
+  71005,
+  71006,
+  71007,
+  71008,
+  71009,
+  71010,
+  71011,
+  71012,
+  71013,
+  71014,
+  71015,
+  71016,
+  71017,
+  71018,
+  71019,
+  71020
+ ],
+ "settings": {
+  "players": 4,
+  "fog": true,
+  "points_to_win": 12,
+  "difficulty": "skynet",
+  "fast_start": false,
+  "blight": false,
+  "routes": true,
+  "one_income_per_turn": "standard"
+ },
+ "games": {
+  "A0": 480,
+  "A1": 480
+ },
+ "route_decision_diagnostics": "read-only: candidates (resource, path_len, mod_score), active_routes, goal, hand; состояние/RNG/порядок не меняются"
+}
