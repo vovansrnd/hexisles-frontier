@@ -7,6 +7,66 @@ from server_local_v4 import action_params_match, make_game, state_for
 
 
 class TradeRoutesIntegrationTests(unittest.TestCase):
+    def _register_test_routes(self, game, player_id, resources, path_length=2):
+        """Install real, disjoint owned-road paths for route lifecycle tests."""
+        adjacent = {vid: [] for vid in game.map.vertices}
+        for edge_id, edge in game.map.edges.items():
+            left, right = edge.vertices
+            adjacent[left].append((right, edge_id))
+            adjacent[right].append((left, edge_id))
+        for neighbours in adjacent.values():
+            neighbours.sort()
+
+        used_vertices = set()
+        routes = []
+        for resource_name in resources:
+            found = None
+            for start in sorted(adjacent):
+                if start in used_vertices:
+                    continue
+                stack = [(start, [start], [])]
+                while stack and found is None:
+                    current, vertices, edge_path = stack.pop()
+                    if len(edge_path) == path_length:
+                        if current != start and start < current and not (
+                            set(vertices) & used_vertices
+                        ):
+                            found = (vertices, edge_path)
+                        continue
+                    for nxt, edge_id in reversed(adjacent[current]):
+                        if nxt in vertices or nxt in used_vertices:
+                            continue
+                        stack.append((nxt, vertices + [nxt], edge_path + [edge_id]))
+                if found:
+                    break
+
+            self.assertIsNotNone(
+                found, f"expected a disjoint path of {path_length} roads"
+            )
+            vertices, edge_path = found
+            for vertex_id in (vertices[0], vertices[-1]):
+                game.map.vertices[vertex_id].structure_owner = player_id
+                game.map.vertices[vertex_id].structure_type = StructureType.OUTPOST
+            for edge_id in edge_path:
+                game.map.edges[edge_id].route_owner = player_id
+            used_vertices.update(vertices)
+            routes.append(
+                {
+                    "start_vid": vertices[0],
+                    "end_vid": vertices[-1],
+                    "edge_path": list(edge_path),
+                    "trade_resource": resource_name,
+                    "activated_turn": 1,
+                    "income_eligible_turn": 2,
+                    "suppressed_until": -1,
+                    "last_income_turn": -1,
+                    "vertices": vertices,
+                }
+            )
+        game.state_version += 1
+        game._cache.clear()
+        return routes
+
     def _game(self, routes=True):
         game = make_game(
             "ROUTETEST",
@@ -136,15 +196,12 @@ class TradeRoutesIntegrationTests(unittest.TestCase):
         game._add_player_internal("Two", False)
         game.start_game()
         player = game.players[0]
-        player.ext["active_routes"] = [
-            {"edge_path": [1, 2], "trade_resource": "grain", "activated_turn": 1,
-             "income_eligible_turn": 2, "suppressed_until": -1, "last_income_turn": -1},
-            {"edge_path": [3, 4], "trade_resource": "ore", "activated_turn": 1,
-             "income_eligible_turn": 2, "suppressed_until": -1, "last_income_turn": -1},
-            {"edge_path": [5, 6], "trade_resource": "wool", "activated_turn": 1,
-             "income_eligible_turn": 2, "suppressed_until": -1, "last_income_turn": -1},
-        ]
-        # First tick pays the lexically first ready route; next ticks rotate.
+        routes = self._register_test_routes(
+            game, 0, ["grain", "ore", "wool"], path_length=2
+        )
+        player.ext["active_routes"] = routes
+
+        # One shared income slot rotates fairly across all currently ready routes.
         for turn in (10, 11, 12):
             game.global_turn = turn
             mod.on_turn_started(game, 0)
@@ -153,13 +210,92 @@ class TradeRoutesIntegrationTests(unittest.TestCase):
         self.assertEqual(player.resources[Resource.WOOL], 1)
         self.assertEqual(game.ext["mod_telemetry"]["routes"]["counters"]["route_income_units"], 3)
 
-        # The next route in line is grain again, but if it's suppressed, skip it.
-        player.ext["active_routes"][0]["suppressed_until"] = 20
+        # After the third route, rotation wraps to the first sorted route.
+        ordered = sorted(
+            routes,
+            key=lambda route: (tuple(route["edge_path"]), route["trade_resource"]),
+        )
+        suppressed = ordered[0]
+        affected_hex = next(
+            iter(game.map.edges[suppressed["edge_path"][0]].adjacent_hexes)
+        )
         game.global_turn = 13
+        mod.on_after_raider_moved(game, 0, affected_hex, [])
+
+        # A move during turn 13 suppresses the route at the next income tick.
+        game.global_turn = 14
         before = dict(player.resources)
         mod.on_turn_started(game, 0)
-        self.assertEqual(player.resources[Resource.GRAIN], before[Resource.GRAIN])
+        suppressed_resource = Resource.__members__[suppressed["trade_resource"].upper()]
+        self.assertEqual(
+            player.resources[suppressed_resource],
+            before[suppressed_resource],
+        )
         self.assertEqual(sum(player.resources.values()) - sum(before.values()), 1)
+
+    def test_active_route_is_suspended_when_an_opponent_building_cuts_its_path(self):
+        mod = TradeRoutesMod()
+        game = HexGame("ROUTEBLOCK", seed=21, plugins=[mod], fog_of_war=False)
+        game._add_player_internal("One", False)
+        game._add_player_internal("Two", False)
+        game.start_game()
+
+        route = self._register_test_routes(
+            game, 0, ["grain"], path_length=4
+        )[0]
+        game.players[0].ext["active_routes"] = [route]
+        game.global_turn = 20
+
+        # A valid path grants both the resource income and its 3:1 bank rate.
+        self.assertEqual(mod.modify_bank_rate(game, 4, 0, Resource.GRAIN), 3)
+        mod.on_turn_started(game, 0)
+        self.assertEqual(game.players[0].resources[Resource.GRAIN], 1)
+
+        # The middle vertex is two roads away from both owner buildings, so a
+        # rival structure can legally interrupt this four-road connection.
+        blocker_vertex = route["vertices"][2]
+        game.map.vertices[blocker_vertex].structure_owner = 1
+        game.map.vertices[blocker_vertex].structure_type = StructureType.OUTPOST
+        game.state_version += 1
+        game._cache.clear()
+
+        game.global_turn = 21
+        before = game.players[0].resources[Resource.GRAIN]
+        mod.on_turn_started(game, 0)
+        self.assertEqual(game.players[0].resources[Resource.GRAIN], before)
+        self.assertEqual(mod.modify_bank_rate(game, 4, 0, Resource.GRAIN), 4)
+
+    def test_suppression_rounds_cover_full_table_rounds_including_movers_next_turn(self):
+        mod = TradeRoutesMod(suppression_rounds=2)
+        game = HexGame(
+            "ROUTESUPPRESSION",
+            seed=31,
+            plugins=[mod],
+            fog_of_war=False,
+        )
+        for name in ("One", "Two", "Three", "Four"):
+            game._add_player_internal(name, False)
+        game.start_game()
+
+        route = self._register_test_routes(game, 0, ["grain"], path_length=2)[0]
+        game.players[0].ext["active_routes"] = [route]
+        affected_hex = next(
+            iter(game.map.edges[route["edge_path"][0]].adjacent_hexes)
+        )
+        game.global_turn = 10
+        mod.on_after_raider_moved(game, 0, affected_hex, [])
+
+        # Two full table rounds on four seats: the next eight owner-turn starts
+        # are suppressed. The exclusive expiry turn is global_turn + 9.
+        self.assertEqual(route["suppressed_until"], 19)
+        game.players[0].resources[Resource.GRAIN] = 0
+        for owner_turn in (14, 18):
+            game.global_turn = owner_turn
+            mod.on_turn_started(game, 0)
+            self.assertEqual(game.players[0].resources[Resource.GRAIN], 0)
+        game.global_turn = 22
+        mod.on_turn_started(game, 0)
+        self.assertEqual(game.players[0].resources[Resource.GRAIN], 1)
 
     def test_current_raider_marker_is_public_without_revealing_hidden_hex(self):
         game = self._game(routes=False)
