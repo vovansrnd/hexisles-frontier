@@ -2359,8 +2359,7 @@ class TradeRoutesMod:
         # closeout where grain/ore shortages can otherwise strand a 9-VP leader.
         benefit += 0.62 * min(2, missing_this)
         benefit += 0.12 * min(self.max_len, route_len) * _context_gene(context, "routes.route_length_bias", 0.8)
-        if income_benefit:
-            benefit += 0.85
+        benefit += income_bonus
         # Redundant route to the same resource can insure against suppression,
         # but gets no automatic bonus unless its previous route is suppressed.
         if existing_routes_same_commodity and not existing_live:
