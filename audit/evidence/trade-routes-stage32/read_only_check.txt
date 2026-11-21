@@ -1,0 +1,11 @@
+{
+ "n_route_candidates": 1,
+ "mod_scores": [
+  -0.16351
+ ],
+ "rng_unchanged": true,
+ "state_unchanged": true,
+ "verdict": "PASS",
+ "snapshot_coverage": "global_turn, current_player, phase, RNG state, все вершины (owner/type), все рёбра (owner), ресурсы всех игроков, player.ext (включая active_routes), game.ext полностью, длина журнала",
+ "note": "bank_rate_benefit и маржинальная дельта портфеля в момент решения в исходной серии не записывались; здесь не восстанавливаются"
+}

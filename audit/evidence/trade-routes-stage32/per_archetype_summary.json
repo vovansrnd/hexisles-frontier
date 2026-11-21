@@ -1,46 +1,86 @@
 {
  "A0": {
-  "decisions": {
-   "walle": 3274,
-   "t800": 3175,
-   "c3po": 3245,
-   "r2d2": 3526
+  "t800": {
+   "route_decisions": 3175,
+   "activations": 547,
+   "income_units": 1097,
+   "build_route": 3458,
+   "build_outpost": 1098,
+   "build_metropolis": 1202,
+   "bank_trades": 3307,
+   "p2p_accepted": 432
   },
-  "activations": {
-   "walle": 585,
-   "c3po": 513,
-   "t800": 547,
-   "r2d2": 529
+  "r2d2": {
+   "route_decisions": 3526,
+   "activations": 529,
+   "income_units": 1044,
+   "build_route": 3498,
+   "build_outpost": 1260,
+   "build_metropolis": 1263,
+   "bank_trades": 3872,
+   "p2p_accepted": 405
   },
-  "chosen_resources": {
-   "ore": 240,
-   "wood": 494,
-   "clay": 278,
-   "wool": 672,
-   "grain": 490
+  "c3po": {
+   "route_decisions": 3245,
+   "activations": 513,
+   "income_units": 972,
+   "build_route": 3384,
+   "build_outpost": 1082,
+   "build_metropolis": 1152,
+   "bank_trades": 3296,
+   "p2p_accepted": 392
   },
-  "n_games": 480
+  "walle": {
+   "route_decisions": 3274,
+   "activations": 585,
+   "income_units": 1328,
+   "build_route": 4129,
+   "build_outpost": 1060,
+   "build_metropolis": 1114,
+   "bank_trades": 3433,
+   "p2p_accepted": 420
+  }
  },
  "A1": {
-  "decisions": {
-   "walle": 3234,
-   "t800": 3111,
-   "c3po": 3233,
-   "r2d2": 3599
+  "t800": {
+   "route_decisions": 3111,
+   "activations": 545,
+   "income_units": 1090,
+   "build_route": 3494,
+   "build_outpost": 1100,
+   "build_metropolis": 1199,
+   "bank_trades": 3318,
+   "p2p_accepted": 427
   },
-  "activations": {
-   "walle": 593,
-   "c3po": 519,
-   "t800": 545,
-   "r2d2": 545
+  "r2d2": {
+   "route_decisions": 3599,
+   "activations": 545,
+   "income_units": 1036,
+   "build_route": 3528,
+   "build_outpost": 1272,
+   "build_metropolis": 1248,
+   "bank_trades": 3853,
+   "p2p_accepted": 406
   },
-  "chosen_resources": {
-   "ore": 327,
-   "wood": 488,
-   "clay": 313,
-   "wool": 601,
-   "grain": 473
+  "c3po": {
+   "route_decisions": 3233,
+   "activations": 519,
+   "income_units": 960,
+   "build_route": 3431,
+   "build_outpost": 1090,
+   "build_metropolis": 1154,
+   "bank_trades": 3256,
+   "p2p_accepted": 385
   },
-  "n_games": 480
+  "walle": {
+   "route_decisions": 3234,
+   "activations": 593,
+   "income_units": 1330,
+   "build_route": 4180,
+   "build_outpost": 1070,
+   "build_metropolis": 1116,
+   "bank_trades": 3423,
+   "p2p_accepted": 440
+  }
  }
 }

@@ -9,5 +9,28 @@
  "no_blight_violations": 0,
  "trades_mod_missing": 0,
  "plugin_errors": 0,
- "seeds": "71001-71020 (fresh)"
+ "seeds": "71001-71020 (fresh)",
+ "activation_totals": {
+  "A0": 2174,
+  "A1": 2202
+ },
+ "activation_by_resource": {
+  "A0": {
+   "ore": 240,
+   "wood": 494,
+   "clay": 278,
+   "wool": 672,
+   "grain": 490
+  },
+  "A1": {
+   "ore": 327,
+   "wood": 488,
+   "clay": 313,
+   "wool": 601,
+   "grain": 473
+  }
+ },
+ "per_game_act_sum_check_fail": 0,
+ "per_game_income_sum_check_fail": 0,
+ "per_game_checks": "sum(act_*)==activations и sum(income_*)==income_total — 960/960 PASS"
 }
