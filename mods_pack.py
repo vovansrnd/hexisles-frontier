@@ -2302,21 +2302,55 @@ class TradeRoutesMod:
             if (r if isinstance(r, Resource) else _resource(r)) != commodity
         )
 
-        # A route has two independent benefits: a commodity-specific bank-rate
-        # upgrade and delayed resource income. A 3:1 or 2:1 port removes the
-        # bank-rate benefit, but must not incorrectly erase the income benefit.
+        # Route income is a portfolio, not simply a boolean "first route"
+        # benefit. Under the shared one-unit cap, adding a different commodity
+        # changes the mix of future income (and can be valuable even though the
+        # total number of units per owner turn does not rise). Value that change
+        # as the marginal average resource utility of the expanded portfolio.
         all_active_routes = [
             route for route in active_routes
             if isinstance(route, dict)
             and self._route_path_is_open(game, player_id, route)
         ]
-        any_unsuppressed_route = any(
-            int(r.get("suppressed_until", -1)) <= game.global_turn
-            for r in all_active_routes
-        )
-        income_benefit = not self.one_income_per_turn or not any_unsuppressed_route
+        active_income_routes = [
+            route for route in all_active_routes
+            if int(route.get("suppressed_until", -1)) <= game.global_turn
+        ]
+        cost_fn = context.get("resource_weight")
+
+        def income_resource_value(resource: Resource) -> float:
+            if callable(cost_fn):
+                try:
+                    value = float(cost_fn(resource, goal))
+                    if math.isfinite(value):
+                        return max(0.05, value)
+                except Exception:
+                    pass
+            return 1.0
+
+        candidate_income_value = income_resource_value(commodity)
+        if self.one_income_per_turn:
+            existing_values = [
+                income_resource_value(route_resource)
+                for route in active_income_routes
+                if (route_resource := _resource(route.get("trade_resource"))) is not None
+            ]
+            if existing_values:
+                old_average = sum(existing_values) / len(existing_values)
+                new_average = (
+                    sum(existing_values) + candidate_income_value
+                ) / (len(existing_values) + 1)
+                income_bonus = max(-0.85, min(0.85, new_average - old_average))
+            else:
+                # Preserve the established first-route bonus when no live
+                # income route currently supplies the player.
+                income_bonus = 0.85
+        else:
+            # Per-route mode creates an additional unit every owner turn.
+            income_bonus = 0.85
+
         bank_rate_benefit = base_rate > self.bank_trade_rate
-        if not bank_rate_benefit and not income_benefit:
+        if not bank_rate_benefit and income_bonus <= 0.0:
             return -1e6
 
         route_len = len(params.get("edge_path", ()))
