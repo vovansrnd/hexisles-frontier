@@ -288,10 +288,11 @@ class TradeRoutesIntegrationTests(unittest.TestCase):
         # are suppressed. The exclusive expiry turn is global_turn + 9.
         self.assertEqual(route["suppressed_until"], 19)
         game.players[0].resources[Resource.GRAIN] = 0
-        game.global_turn = 18
-        mod.on_turn_started(game, 0)
-        self.assertEqual(game.players[0].resources[Resource.GRAIN], 0)
-        game.global_turn = 19
+        for owner_turn in (14, 18):
+            game.global_turn = owner_turn
+            mod.on_turn_started(game, 0)
+            self.assertEqual(game.players[0].resources[Resource.GRAIN], 0)
+        game.global_turn = 22
         mod.on_turn_started(game, 0)
         self.assertEqual(game.players[0].resources[Resource.GRAIN], 1)
 
