@@ -1,5 +1,6 @@
 import json
 import unittest
+from types import SimpleNamespace
 
 from isles_core import Action, GamePhase, HexGame, Resource, StructureType
 from mods_pack import TradeRoutesMod, _productive_tile
@@ -296,6 +297,61 @@ class TradeRoutesIntegrationTests(unittest.TestCase):
         game.global_turn = 22
         mod.on_turn_started(game, 0)
         self.assertEqual(game.players[0].resources[Resource.GRAIN], 1)
+
+    def test_per_route_income_mode_allows_second_route_for_same_commodity(self):
+        def build_case(one_income_per_turn):
+            mod = TradeRoutesMod(one_income_per_turn=one_income_per_turn)
+            game = HexGame(
+                f"ROUTE-SAME-RESOURCE-{one_income_per_turn}",
+                seed=41,
+                plugins=[mod],
+                fog_of_war=False,
+            )
+            game._add_player_internal("One", False)
+            game._add_player_internal("Two", False)
+            game.start_game()
+            player = game.players[0]
+            player.resources[Resource.WOOL] = 2
+            player.resources[Resource.GRAIN] = 2
+            player.trade_pact_turn = game.global_turn  # base bank rate is already 2:1
+            routes = self._register_test_routes(
+                game, 0, ["grain", "grain"], path_length=2
+            )
+            player.ext["active_routes"] = [routes[0]]
+            candidate = routes[1]
+            action = Action.make(
+                "activate_route",
+                start_vid=candidate["start_vid"],
+                end_vid=candidate["end_vid"],
+                edge_path=candidate["edge_path"],
+                trade_resource="grain",
+            )
+            context = {
+                "goal": SimpleNamespace(needed={}),
+                "resource_weight": lambda resource, goal: 0.1,
+                "genes": {},
+            }
+            return mod, game, action, context
+
+        per_route_mod, per_route_game, action, context = build_case(False)
+        per_route_score = per_route_mod.score_ai_action(
+            per_route_game, 0, action, context
+        )
+        self.assertGreater(
+            per_route_score,
+            -1e6,
+            "per-route income makes a second same-resource route productive",
+        )
+
+        capped_mod, capped_game, capped_action, capped_context = build_case(True)
+        capped_score = capped_mod.score_ai_action(
+            capped_game, 0, capped_action, capped_context
+        )
+        self.assertEqual(
+            capped_score,
+            -1e6,
+            "shared one-income-per-turn mode should not pay for a duplicate live commodity route",
+        )
 
     def test_current_raider_marker_is_public_without_revealing_hidden_hex(self):
         game = self._game(routes=False)
