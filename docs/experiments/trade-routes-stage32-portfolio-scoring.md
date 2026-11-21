@@ -13,8 +13,8 @@ costs, income cap, bank rates or suppression rules may change between arms.
 
 - **A0 — previous route scorer:** commit
   `9af21df2856a30e2ad448e3fefa970529477c179`.
-- **A1 — marginal portfolio scorer:** branch
-  `experiment/trade-routes-integrity` at the stage-3.2 validation SHA.
+- **A1 — marginal portfolio scorer:**
+  `experiment/trade-routes-integrity@f1fff48f78526bbe265a37bfb957d2030306dee5`.
 
 Both arms contain the three Stage 3.1 integrity fixes. Their only gameplay
 difference must be the route-AI scoring change from commit
