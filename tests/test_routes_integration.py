@@ -371,6 +371,81 @@ class TradeRoutesIntegrationTests(unittest.TestCase):
             "shared mode should pay only one route-income unit per owner turn",
         )
 
+    def test_shared_income_mode_values_marginal_resource_diversity(self):
+        mod = TradeRoutesMod(one_income_per_turn=True)
+        game = HexGame(
+            "ROUTE-PORTFOLIO-VALUE",
+            seed=51,
+            plugins=[mod],
+            fog_of_war=False,
+        )
+        game._add_player_internal("One", False)
+        game._add_player_internal("Two", False)
+        game.start_game()
+        player = game.players[0]
+        player.resources[Resource.WOOL] = 2
+        player.resources[Resource.GRAIN] = 2
+        # A pact already provides a 2:1 bank rate, so a route cannot improve
+        # the bank exchange. Any accepted score must come from route income.
+        player.trade_pact_turn = game.global_turn
+
+        routes = self._register_test_routes(
+            game, 0, ["grain", "ore", "wool"], path_length=2
+        )
+        player.ext["active_routes"] = [routes[0]]
+
+        def action_for(route, resource):
+            return Action.make(
+                "activate_route",
+                start_vid=route["start_vid"],
+                end_vid=route["end_vid"],
+                edge_path=route["edge_path"],
+                trade_resource=resource,
+            )
+
+        # Ore is currently the scarce target resource. Adding an ore route
+        # changes the shared income portfolio from grain-only to grain/ore.
+        goal = SimpleNamespace(needed={Resource.ORE: 2})
+        context = {
+            "goal": goal,
+            "resource_weight": lambda resource, _goal: {
+                Resource.GRAIN: 0.5,
+                Resource.ORE: 3.0,
+                Resource.WOOL: 0.25,
+            }[resource],
+            "genes": {},
+        }
+        ore_score = mod.score_ai_action(
+            game, 0, action_for(routes[1], "ore"), context
+        )
+        self.assertGreater(
+            ore_score,
+            0.15,
+            "a scarce different commodity should make the expanded income portfolio worthwhile",
+        )
+
+        # Wool is less useful than the existing grain income and has no bank
+        # benefit. The scorer should not add an objectively inferior route.
+        wool_score = mod.score_ai_action(
+            game,
+            0,
+            action_for(routes[2], "wool"),
+            {
+                "goal": SimpleNamespace(needed={}),
+                "resource_weight": lambda resource, _goal: {
+                    Resource.GRAIN: 1.0,
+                    Resource.ORE: 0.8,
+                    Resource.WOOL: 0.2,
+                }[resource],
+                "genes": {},
+            },
+        )
+        self.assertEqual(
+            wool_score,
+            -1e6,
+            "a lower-value commodity should not dilute the shared route-income portfolio",
+        )
+
     def test_current_raider_marker_is_public_without_revealing_hidden_hex(self):
         game = self._game(routes=False)
         self.assertTrue(game.start_game().success)
