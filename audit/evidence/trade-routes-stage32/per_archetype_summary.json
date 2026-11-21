@@ -1,0 +1,46 @@
+{
+ "A0": {
+  "decisions": {
+   "walle": 3274,
+   "t800": 3175,
+   "c3po": 3245,
+   "r2d2": 3526
+  },
+  "activations": {
+   "walle": 585,
+   "c3po": 513,
+   "t800": 547,
+   "r2d2": 529
+  },
+  "chosen_resources": {
+   "ore": 240,
+   "wood": 494,
+   "clay": 278,
+   "wool": 672,
+   "grain": 490
+  },
+  "n_games": 480
+ },
+ "A1": {
+  "decisions": {
+   "walle": 3234,
+   "t800": 3111,
+   "c3po": 3233,
+   "r2d2": 3599
+  },
+  "activations": {
+   "walle": 593,
+   "c3po": 519,
+   "t800": 545,
+   "r2d2": 545
+  },
+  "chosen_resources": {
+   "ore": 327,
+   "wood": 488,
+   "clay": 313,
+   "wool": 601,
+   "grain": 473
+  },
+  "n_games": 480
+ }
+}

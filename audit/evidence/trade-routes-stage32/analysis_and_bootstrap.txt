@@ -1,0 +1,31 @@
+=== Скрипт анализа и параметры bootstrap (Этап 3.2) ===
+
+Скрипт анализа: tools/analyze_tp32.py (копия в evidence: analyze_tp32.py)
+Экспортёр данных: tools/tp32_evidence_final.py (копия: tp32_evidence_final.py)
+Драйвер серий: tools/run_tp32.py
+
+Точная команда запуска серий:
+  python3 tools/run_tp32.py --arm A0 --seeds 71001-71020 --workers 4   # worktree hf-tr0 @ 9af21df
+  python3 tools/run_tp32.py --arm A1 --seeds 71001-71020 --workers 4   # worktree hf-tr1 @ f1fff48
+
+Точная команда анализа:
+  python3 tools/analyze_tp32.py sessions/tp32
+
+Bootstrap:
+  метод: непараметрический процентильный бутстрап;
+  единица ресемплирования — СИД (20 сидов; среднее по 24 рассадкам внутри сида);
+  репликаций: 10000;
+  RNG: random.Random(0x32) — фиксированный seed 50;
+  ДИ: 2.5-й и 97.5-й процентили распределения средних ресемплов (percentile interval).
+
+Non-inferiority маржи (протокол 3.2): поселения −0.25, города −0.25,
+финальные ОП −0.20 на игрока; критерий — нижняя граница 95% ДИ выше маржи.
+
+Составы кандидатов в route_decisions_*.jsonl.gz:
+  candidates[i] = {trade_resource, path_len, mod_score}
+  mod_score = brain._score_extension_action(act, goal) — та же функция и
+  контекст (goal/personality/tuning/genes/resource_weight), что использовал бот.
+  bank_rate_benefit и маржинальная дельта портфеля в момент решения НЕ
+  сохранялись (зависели от полного состояния портов/рук) — в архиве
+  отсутствуют, помечено; частично восстанавливаются разницей mod_score
+  кандидатов одного решения с одинаковой длиной пути.

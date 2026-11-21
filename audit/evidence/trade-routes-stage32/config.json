@@ -1,0 +1,73 @@
+{
+ "experiment": "stage32 — портфельная оценка Trade Routes (A0 9af21df vs A1 f1fff48)",
+ "arms": {
+  "A0": {
+   "code": "9af21df",
+   "worktree": "/opt/MyApps/2424/hf-tr0"
+  },
+  "A1": {
+   "code": "f1fff48",
+   "worktree": "/opt/MyApps/2424/hf-tr1"
+  }
+ },
+ "seeds": [
+  71001,
+  71002,
+  71003,
+  71004,
+  71005,
+  71006,
+  71007,
+  71008,
+  71009,
+  71010,
+  71011,
+  71012,
+  71013,
+  71014,
+  71015,
+  71016,
+  71017,
+  71018,
+  71019,
+  71020
+ ],
+ "settings": {
+  "players": 4,
+  "fog": true,
+  "points_to_win": 12,
+  "difficulty": "skynet",
+  "fast_start": false,
+  "blight": false,
+  "routes": true,
+  "one_income_per_turn": "standard"
+ },
+ "games": {
+  "A0": 480,
+  "A1": 480
+ },
+ "route_decision_diagnostics": "read-only: candidates (resource, path_len, mod_score), active_routes, goal, hand; состояние/RNG/порядок не меняются",
+ "income_grain_fix": {
+  "root_cause": "RESOURCE_NAMES_RU[Resource.GRAIN] = 'пшеница'; CSV-экспортёр и анализатор сопоставляли 'зерно' и теряли зерновой доход",
+  "paid_in_engine": true,
+  "preserved_in_traces": true,
+  "fixed_in": [
+   "tp32_evidence_final.py (games.csv/seeds.csv)",
+   "analyze_tp32.py (income по ресурсам)"
+  ],
+  "restored": {
+   "A0": 811,
+   "A1": 779
+  },
+  "verification": "per-game sum(income_by_resource) == income_total: 960/960 PASS"
+ },
+ "first_run_rejected": {
+  "what": "первый прогон серии: драйвер фильтровал действия типа activate_trade_route вместо фактического activate_route, и не записывал trade_proposal-события",
+  "how_detected": "разбор: доход маршрутов платился (журнал), события route_decision/route_activation отсутствовали",
+  "action": "драйвер исправлен, серия перезапущена на тех же сидах 71001-71020 (движок детерминирован); частичные данные удалены"
+ },
+ "read_only_control": {
+  "method": "снимки состояния (хеш владельцев вершин/рёбер, руки, ext, active_routes, длины журнала) и RNG-state до/после диагностического чтения с ненулевым набором кандидатов",
+  "result": "PASS: RNG и состояние идентичны до/после; скоринг мода чистый (без мутаций); код драйвера читает только enumerate_legal_actions/brain._score_extension_action"
+ }
+}

@@ -1,0 +1,7 @@
+{
+ "verify_pass": 960,
+ "verify_fail": 0,
+ "read_only_rng_ok": true,
+ "read_only_state_ok": true,
+ "income_grain_cause": "RESOURCE_NAMES_RU[GRAIN]='пшеница'; прежний матчер искал 'зерно' и терял зерновой доход в CSV-экспорте; доход в движке платился и сохранён в трассах"
+}
