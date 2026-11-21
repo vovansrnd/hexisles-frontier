@@ -2282,7 +2282,11 @@ class TradeRoutesMod:
             int(route.get("suppressed_until", -1)) <= game.global_turn
             for route in existing_routes_same_commodity
         )
-        if existing_live:
+        # With the default shared income cap, a second live route for the
+        # same commodity cannot add income or improve the same bank rate.
+        # In per-route income mode, however, every ready route pays separately,
+        # so same-commodity routes are valid additional production.
+        if existing_live and self.one_income_per_turn:
             return -1e6
 
         holdings = player.resources
