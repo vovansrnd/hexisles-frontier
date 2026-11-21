@@ -67,7 +67,29 @@ activate a second same-resource route even when it was productive.
 
 The patch applies that same-commodity rejection only in shared-income mode.
 In per-route income mode, a second route may be scored because it adds a
-separate income stream. Regression coverage checks both settings.
+separate income stream. Regression coverage verifies that every ready route
+actually pays, including same-resource duplicates.
+
+### 4. Shared-income scoring ignored the marginal value of resource diversity
+
+The default income cap pays one unit per owner turn across the player's
+unsuppressed routes, rotating the resource supplied. The previous scorer treated
+this as a binary benefit: a route was worth +0.85 if there was no existing live
+route, otherwise its income benefit was zero. This undervalued a second route
+that supplies a different, currently scarce resource, and could reject it
+entirely when a port or pact already provided an equal/better bank rate.
+
+The scorer now values the change in the average marginal utility of the route
+income portfolio. It compares the candidate commodity's current resource value
+with the average value of the unsuppressed active route commodities. The first
+route retains the existing +0.85 score bonus; a subsequent route receives a
+positive/negative bounded marginal portfolio delta. A route with no bank-rate
+benefit and non-positive marginal income value remains rejected. The game
+rules, shared one-unit cap, payout rotation and activation cost are unchanged.
+
+This is a testable AI-scoring hypothesis, not yet an experimentally validated
+balance improvement. The next stage must compare old and new scorers on paired
+maps and inspect trade-to-build, resource bottlenecks and final outcomes.
 
 ## Added regression coverage
 
@@ -82,6 +104,9 @@ separate income stream. Regression coverage checks both settings.
 - Per-route income allowing a second route of the same commodity and paying
   both ready routes, while the shared-income cap rejects a redundant live
   duplicate and pays only one unit per owner turn.
+- Shared-income scoring values a second route that adds a scarce commodity
+  to the income portfolio, but rejects a lower-value commodity that dilutes it
+  when there is no bank-rate benefit.
 
 ## Remaining design questions — not changed in this patch
 
