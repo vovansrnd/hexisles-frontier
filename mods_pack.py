@@ -2042,6 +2042,72 @@ class TradeRoutesMod:
         game._add_log(f"   📦 Товар маршрута: {RESOURCE_NAMES_RU[commodity]}", player_id)
         return ActionResult(True)
 
+    def _route_path_is_open(
+        self, game: HexGame, player_id: int, route: dict[str, Any]
+    ) -> bool:
+        """Return whether an activated route still connects its two owner buildings.
+
+        Opponent buildings interrupt road connectivity in the base engine. An
+        activated trade route follows the same rule: it remains registered, but
+        cannot pay income or improve bank rates while its path is broken.
+        """
+        if not isinstance(route, dict) or not _valid_int(player_id):
+            return False
+        start_vid = route.get("start_vid")
+        end_vid = route.get("end_vid")
+        raw_path = route.get("edge_path")
+        if (
+            not _valid_int(start_vid)
+            or not _valid_int(end_vid)
+            or start_vid == end_vid
+            or start_vid not in game.map.vertices
+            or end_vid not in game.map.vertices
+            or not isinstance(raw_path, (list, tuple))
+            or not self.min_len <= len(raw_path) <= self.max_len
+            or not all(_valid_int(eid) for eid in raw_path)
+        ):
+            return False
+
+        if (
+            game.map.vertices[start_vid].structure_owner != player_id
+            or game.map.vertices[end_vid].structure_owner != player_id
+        ):
+            return False
+
+        current = start_vid
+        visited_vertices = {start_vid}
+        visited_edges: set[int] = set()
+        for index, edge_id in enumerate(raw_path):
+            if edge_id in visited_edges:
+                return False
+            edge = game.map.edges.get(edge_id)
+            if edge is None or edge.route_owner != player_id:
+                return False
+            first, second = edge.vertices
+            if current == first:
+                next_vid = second
+            elif current == second:
+                next_vid = first
+            else:
+                return False
+
+            if next_vid in visited_vertices or next_vid not in game.map.vertices:
+                return False
+            vertex = game.map.vertices[next_vid]
+            is_last = index == len(raw_path) - 1
+            if is_last:
+                if next_vid != end_vid or vertex.structure_owner != player_id:
+                    return False
+            elif vertex.structure_owner not in (None, player_id):
+                # A rival building cuts the owner's road network at this node.
+                return False
+
+            visited_edges.add(edge_id)
+            visited_vertices.add(next_vid)
+            current = next_vid
+
+        return current == end_vid
+
     def on_turn_started(self, game: HexGame, player_id: int) -> None:
         """Pay route income at most once on an owner's turn, if unblocked.
 
@@ -2071,6 +2137,8 @@ class TradeRoutesMod:
             if int(route.get("suppressed_until", -1)) > game.global_turn:
                 continue
             if int(route.get("last_income_turn", -1)) == game.global_turn:
+                continue
+            if not self._route_path_is_open(game, player_id, route):
                 continue
             ready.append((route, commodity))
         if self.one_income_per_turn and ready:
@@ -2121,7 +2189,11 @@ class TradeRoutesMod:
             return
         if hex_id not in game.map.hexes:
             return
-        duration = self.suppression_rounds or max(1, len(game.players))
+        # A suppression of N table rounds must cover the next N owner-turn
+        # starts for every player, including the player who moved the raider.
+        # suppressed_until is exclusive in all readers below.
+        rounds = self.suppression_rounds if self.suppression_rounds is not None else 1
+        duration = rounds * max(1, len(game.players))
         affected_edges = {
             eid for eid, edge in game.map.edges.items() if hex_id in edge.adjacent_hexes
         }
@@ -2130,13 +2202,15 @@ class TradeRoutesMod:
             for route in owner.ext.get("active_routes", []):
                 if not isinstance(route, dict):
                     continue
+                if not self._route_path_is_open(game, owner.player_id, route):
+                    continue
                 path = route.get("edge_path", ())
                 if not set(path).intersection(affected_edges):
                     continue
                 old_until = int(route.get("suppressed_until", -1))
                 if old_until > game.global_turn:
                     continue
-                route["suppressed_until"] = game.global_turn + duration
+                route["suppressed_until"] = game.global_turn + duration + 1
                 newly_suppressed += 1
                 _inc(game, self.mod_id, "route_suppressions", player_id=owner.player_id)
                 _append_event(
@@ -2172,6 +2246,7 @@ class TradeRoutesMod:
             isinstance(route, dict)
             and route.get("trade_resource") == commodity.value
             and int(route.get("suppressed_until", -1)) <= game.global_turn
+            and self._route_path_is_open(game, player_id, route)
             for route in routes
         )
         if route_is_active:
@@ -2199,7 +2274,9 @@ class TradeRoutesMod:
         base_rate = _current_route_rate_without_mod(game, player_id, commodity)
         existing_routes_same_commodity = [
             route for route in active_routes
-            if isinstance(route, dict) and route.get("trade_resource") == commodity.value
+            if isinstance(route, dict)
+            and route.get("trade_resource") == commodity.value
+            and self._route_path_is_open(game, player_id, route)
         ]
         existing_live = any(
             int(route.get("suppressed_until", -1)) <= game.global_turn
@@ -2224,7 +2301,11 @@ class TradeRoutesMod:
         # A route has two independent benefits: a commodity-specific bank-rate
         # upgrade and delayed resource income. A 3:1 or 2:1 port removes the
         # bank-rate benefit, but must not incorrectly erase the income benefit.
-        all_active_routes = [r for r in active_routes if isinstance(r, dict)]
+        all_active_routes = [
+            route for route in active_routes
+            if isinstance(route, dict)
+            and self._route_path_is_open(game, player_id, route)
+        ]
         any_unsuppressed_route = any(
             int(r.get("suppressed_until", -1)) <= game.global_turn
             for r in all_active_routes
