@@ -1,0 +1,59 @@
+{
+ "experiment": "stage41 — blight corrupt target ranking (A0 main@3590371 vs A1 f84f978 overflow-скоринг)",
+ "arms": {
+  "A0": {
+   "code": "main @ 3590371",
+   "worktree": "/opt/MyApps/2424/hf-b0"
+  },
+  "A1": {
+   "code": "f84f978 (overflow: score≤3.5 без изменений; выше — cap + 0.12·overflow/(1+overflow))",
+   "worktree": "/opt/MyApps/2424/hf-b1"
+  }
+ },
+ "seeds": [
+  72001,
+  72002,
+  72003,
+  72004,
+  72005,
+  72006,
+  72007,
+  72008,
+  72009,
+  72010,
+  72011,
+  72012,
+  72013,
+  72014,
+  72015,
+  72016,
+  72017,
+  72018,
+  72019,
+  72020
+ ],
+ "settings": {
+  "players": 4,
+  "fog": true,
+  "points_to_win": 12,
+  "difficulty": "skynet",
+  "fast_start": false,
+  "friendly_raider": true,
+  "blight": true,
+  "blight_mode": "factions",
+  "cult_visibility": "open",
+  "blight_spread_chance": 0.4,
+  "routes": false,
+  "cult_suppression_theft": false,
+  "cult_corrupt_tear": false
+ },
+ "launch_order": "детерминированное перемешивание A0/A1 (random.Random(0x41).shuffle)",
+ "read_only_control": "каждое corrupt-решение: снимок состояния и RNG до/после диагностического чтения — 80417/80417 PASS",
+ "bootstrap": {
+  "method": "percentile",
+  "reps": 10000,
+  "rng_seed": "random.Random(0x41)",
+  "ci": "2.5/97.5 процентили",
+  "unit": "seed-cluster (20 сидов)"
+ }
+}
