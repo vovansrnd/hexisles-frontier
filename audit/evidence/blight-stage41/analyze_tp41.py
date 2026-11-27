@@ -28,6 +28,96 @@ ARCH_NAME = {"🤖 C3PO": "c3po", "🤖 R2D2": "r2d2", "🤖 T-800": "t800",
              "🤖 Валл-И": "walle"}
 
 
+def choices_by_decision_seq(events):
+    """Связывает corrupt_choice с конкретным corrupt_decision по порядку seq.
+
+    Запись corrupt_choice не содержит action; тип и hex_id сверяются
+    с ближайшим следующим bot_decision того же вызова chooser.
+    """
+    seqs = [e.get("seq") for e in events]
+    if any(not isinstance(x, int) for x in seqs) or any(
+            seqs[i] >= seqs[i + 1] for i in range(len(seqs) - 1)):
+        raise ValueError("trace seq отсутствует, нецелочислен или не монотонен")
+
+    choices = {}
+    stats = Counter()
+    pending = None
+    used_choices = set()
+    used_bot_decisions = set()
+
+    for ev in events:
+        kind = ev.get("kind")
+        if kind == "corrupt_decision":
+            if pending is not None:
+                stats["decision_without_bot_decision"] += 1
+            pending = {"decision": ev, "readonly": None, "choice": None}
+
+        elif kind == "corrupt_readonly":
+            if pending is None:
+                stats["readonly_without_decision"] += 1
+            elif pending["readonly"] is not None:
+                stats["duplicate_readonly"] += 1
+            else:
+                pending["readonly"] = ev
+
+        elif kind == "corrupt_choice":
+            if pending is None:
+                stats["choice_without_decision"] += 1
+            elif pending["choice"] is not None:
+                stats["duplicate_choice"] += 1
+            else:
+                pending["choice"] = ev
+                used_choices.add(ev["seq"])
+
+        elif kind == "bot_decision" and pending is not None:
+            dec = pending["decision"]
+            choice = pending["choice"]
+            decision_seq = dec["seq"]
+            if decision_seq in choices:
+                stats["duplicate_decision_seq"] += 1
+            else:
+                choices[decision_seq] = choice
+
+            if pending["readonly"] is None:
+                stats["decision_without_readonly"] += 1
+
+            bd_player = ev.get("player_id", ev.get("player"))
+            if bd_player is not None and str(bd_player) != str(dec.get("player")):
+                stats["bot_decision_player_mismatch"] += 1
+            bd_turn = ev.get("turn")
+            if bd_turn is not None and bd_turn != dec.get("turn"):
+                stats["bot_decision_turn_mismatch"] += 1
+
+            action = ev.get("action")
+            params = ev.get("params") or {}
+            if choice is not None:
+                if action != "corrupt_hex":
+                    stats["choice_action_mismatch"] += 1
+                if params.get("hex_id") != choice.get("hex_id"):
+                    stats["choice_hex_mismatch"] += 1
+                if choice.get("turn") != dec.get("turn") or str(
+                        choice.get("player")) != str(dec.get("player")):
+                    stats["choice_turn_player_mismatch"] += 1
+            elif action == "corrupt_hex":
+                stats["corrupt_action_without_choice"] += 1
+
+            if ev["seq"] in used_bot_decisions:
+                stats["duplicate_bot_decision_use"] += 1
+            used_bot_decisions.add(ev["seq"])
+            if not isinstance(ev.get("applied_ok"), bool):
+                stats["bot_decision_without_applied_result"] += 1
+
+            pending = None
+
+    if pending is not None:
+        stats["decision_without_bot_decision"] += 1
+        choices[pending["decision"]["seq"]] = pending["choice"]
+
+    stats["matched_decisions"] = len(choices)
+    stats["matched_choices"] = len(used_choices)
+    return choices, stats
+
+
 def boot_ci(vals):
     if not vals:
         return None, None, None, 0, 0
@@ -89,6 +179,7 @@ def main() -> None:
 
     games = {}
     ro_total = ro_ok = 0
+    event_join_qc = Counter()
     for arm in ARMS:
         for r in ok[arm]:
             key = (r["seed"], r["perm"], arm)
@@ -102,8 +193,8 @@ def main() -> None:
             ro_fail_local = sum(1 for e in ro_ev
                                 if not (e.get("state_unchanged") and e.get("rng_unchanged")))
             cd = [e for e in events if e.get("kind") == "corrupt_decision"]
-            choice_map = {(e.get("turn"), e.get("player")): e
-                          for e in events if e.get("kind") == "corrupt_choice"}
+            choice_map, local_join_qc = choices_by_decision_seq(events)
+            event_join_qc.update(local_join_qc)
             pur = sum(1 for e in bd
                       if e.get("applied_ok") and e.get("action") == "purify_hex")
             cor = sum(1 for e in bd
@@ -137,7 +228,7 @@ def main() -> None:
                              and abs(c["mod_score"] - mx_sc) <= EPS)
                 uniq = sorted({round(c["mod_score"], 9) for c in scored}, reverse=True)
                 second_gap = (round(uniq[0] - uniq[1], 6) if len(uniq) >= 2 else None)
-                choice_ev = choice_map.get((turn, pid))
+                choice_ev = choice_map.get(e.get("seq"))
                 chosen_hex = choice_ev.get("hex_id") if choice_ev else None
                 chosen_cand = next((c for c in cands if c["hex_id"] == chosen_hex), None) \
                     if chosen_hex is not None else None
@@ -186,7 +277,10 @@ def main() -> None:
             del events
     print(f"\nпартий разобрано: {len(games)} | read-only контроль: "
           f"{sum(g['ro_ok'] for g in games.values())}/{ro_total} PASS, "
-          f"нарушений {ro_ok and ro_total - ro_ok}")
+          f"нарушений {ro_total - sum(g['ro_ok'] for g in games.values())}")
+    print("=== Event join QC (seq-based) ===")
+    for name, count in sorted(event_join_qc.items()):
+        print(f"  {name}: {count}")
 
     seed_ids = sorted({k[0] for k in games})
 
