@@ -1,0 +1,14 @@
+{
+ "A0": {
+  "stale_chosen": 349,
+  "checked": 349,
+  "applied_ok": 349,
+  "rejected": 0
+ },
+ "A1": {
+  "stale_chosen": 302,
+  "checked": 302,
+  "applied_ok": 302,
+  "rejected": 0
+ }
+}

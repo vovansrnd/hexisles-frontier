@@ -1,0 +1,52 @@
+записей диагностики: {'A0': 40626, 'A1': 39791}
+валидация sidecar: нарушений нет
+
+выбранных corrupt_hex: A0 24669, A1 24218
+решений, где выбрано НЕ corrupt_hex (кандидаты были): A0 15608, A1 15271
+
+=== ЧАСТЬ A. Исправленные метрики выбранных целей ===
+  A0 (n=24669):
+    total enemy production loss: 33762.0
+    total target impact:         119747.0
+    total leader production loss: 13314
+    total leader impact:         47646
+    mean enemy_loss 1.369 | mean impact 4.854 | mean leader_loss 0.540 | mean leader_impact 1.931
+  A1 (n=24218):
+    total enemy production loss: 33115.0
+    total target impact:         117920.0
+    total leader production loss: 12929
+    total leader impact:         46370
+    mean enemy_loss 1.367 | mean impact 4.869 | mean leader_loss 0.534 | mean leader_impact 1.915
+
+=== Парные разности (A1 − A0), bootstrap 0x41 ===
+  enemy production loss выбранной цели: A0 1.388 → A1 1.386 | Δ -0.001 CI95 (-0.0276, 0.0248) | сидов +9/−11
+  impact выбранной цели: A0 4.947 → A1 4.967 | Δ +0.020 CI95 (-0.0891, 0.1302) | сидов +11/−9
+  leader production loss выбранной цели: A0 0.557 → A1 0.546 | Δ -0.011 CI95 (-0.0431, 0.0184) | сидов +11/−9
+  leader impact выбранной цели: A0 2.004 → A1 1.972 | Δ -0.032 CI95 (-0.139, 0.0659) | сидов +12/−8
+
+=== ЧАСТЬ B. Offline what-if: tie-break по impact ===
+  A0:
+    выбран уже максимум группы: 463
+    выбранный corrupt вне группы максимума (аномалия): 5790
+    выбрано не corrupt_hex: 15957
+    группа с одинаковым impact: 17999
+    группа с разными impact: 880
+    исправимо tie-break (выбран ниже максимума группы): 417
+    исправимо с приростом leader impact: 236
+    потенциальный прирост impact: mean 2.516, медиана 2.000, суммарно 1049
+    потенциальный прирост leader impact: суммарно 980
+  A1:
+    выбран уже максимум группы: 1
+    выбранный corrupt вне группы максимума (аномалия): 5803
+    выбрано не corrupt_hex: 15573
+    группа с одинаковым impact: 18412
+    группа с разными impact: 3
+    исправимо tie-break (выбран ниже максимума группы): 2
+    исправимо с приростом leader impact: 1
+    потенциальный прирост impact: mean 3.000, медиана 3.000, суммарно 6
+    потенциальный прирост leader impact: суммарно 3
+
+  Парная доля исправимых tie-break (A1 − A0), bootstrap 0x41:
+    Δ доли «выбран ниже максимума группы» (A1 − A0): -0.3967 CI95 (-0.5487, -0.2227) | сидов +2/−18
+
+агрегаты: sessions/tp41/tp41_corrected_metrics.json
