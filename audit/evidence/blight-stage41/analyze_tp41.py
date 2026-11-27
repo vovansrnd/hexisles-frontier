@@ -118,6 +118,15 @@ def choices_by_decision_seq(events):
     return choices, stats
 
 
+def number_value(value):
+    if value is None or isinstance(value, bool):
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
 def boot_ci(vals):
     if not vals:
         return None, None, None, 0, 0
@@ -233,6 +242,21 @@ def main() -> None:
                 chosen_cand = next((c for c in cands if c["hex_id"] == chosen_hex), None) \
                     if chosen_hex is not None else None
                 max_impact = max((c["impact"] for c in cands), default=None)
+                chosen_enemy_loss = number_value(
+                    (chosen_cand or {}).get("expected_production_loss"))
+                leader_share = number_value(
+                    (chosen_cand or {}).get("leader_loss_share"))
+                chosen_leader_loss = (
+                    round(chosen_enemy_loss * leader_share)
+                    if chosen_enemy_loss is not None and leader_share is not None
+                    else None
+                )
+                chosen_pips = number_value((chosen_cand or {}).get("pips"))
+                chosen_leader_impact = (
+                    chosen_leader_loss * chosen_pips
+                    if chosen_leader_loss is not None and chosen_pips is not None
+                    else None
+                )
                 decisions.append({
                     "turn": turn, "pid": pid, "seq": e.get("seq"),
                     "arch": ARCH_NAME.get(next((b.get("player_name", "") for b in bd
@@ -246,8 +270,10 @@ def main() -> None:
                     "second_gap": second_gap,
                     "max_impact": max_impact,
                     "chosen_is_corrupt": chosen_hex is not None,
+                    "chosen_enemy_loss": chosen_enemy_loss,
                     "chosen_impact": (chosen_cand or {}).get("impact"),
-                    "chosen_leader_loss": (chosen_cand or {}).get("expected_production_loss"),
+                    "chosen_leader_loss": chosen_leader_loss,
+                    "chosen_leader_impact": chosen_leader_impact,
                     "chosen_is_max_impact": (chosen_cand is not None and max_impact is not None
                                              and abs((chosen_cand or {}).get("impact", 0)
                                                      - max_impact) <= EPS),
@@ -331,19 +357,27 @@ def main() -> None:
             for arm in ARMS}
     other_action = {arm: sum(g["other_action"] for k, g in games.items() if k[2] == arm)
                     for arm in ARMS}
+    enemy_loss_values = {arm: [d["chosen_enemy_loss"] for k, g in games.items() if k[2] == arm
+                               for d in g["decisions"] if d["chosen_is_corrupt"]
+                               and d["chosen_enemy_loss"] is not None] for arm in ARMS}
     ch_imp = {arm: [d["chosen_impact"] for k, g in games.items() if k[2] == arm
                     for d in g["decisions"] if d["chosen_is_corrupt"]
                     and d["chosen_impact"] is not None] for arm in ARMS}
     lead_imp = {arm: [d["chosen_leader_loss"] for k, g in games.items() if k[2] == arm
                       for d in g["decisions"] if d["chosen_is_corrupt"]
                       and d["chosen_leader_loss"] is not None] for arm in ARMS}
+    lead_impact_values = {arm: [d["chosen_leader_impact"] for k, g in games.items() if k[2] == arm
+                                for d in g["decisions"] if d["chosen_is_corrupt"]
+                                and d["chosen_leader_impact"] is not None] for arm in ARMS}
     print("\n=== Качество выбранных целей ===")
     for arm in ARMS:
         print(f"  {arm}: выбранных corrupt {chosen_total[arm]} | "
               f"с максимальным impact {max_imp[arm]} "
               f"({max_imp[arm] / max(1, chosen_total[arm]):.1%}) | "
-              f"выбранная expected loss mean {st.mean(ch_imp[arm]):.3f} | "
-              f"leader loss mean {st.mean(lead_imp[arm]):.3f} | "
+              f"enemy production loss mean {st.mean(enemy_loss_values[arm]):.3f} | "
+              f"impact mean {st.mean(ch_imp[arm]):.3f} | "
+              f"leader production loss mean {st.mean(lead_imp[arm]):.3f} | "
+              f"leader impact mean {st.mean(lead_impact_values[arm]):.3f} | "
               f"лидер-цель доступна и выбрана: {lead_hit[arm]}, "
               f"доступна и выбрана другая: {lead_miss[arm]} | "
               f"слабая при сильной: {weak[arm]} | "
@@ -356,14 +390,22 @@ def main() -> None:
                                    and d["chosen_is_max_impact"])
                                / max(1, sum(1 for d in g["decisions"]
                                             if d["chosen_is_corrupt"])))),
-                   ("expected production loss выбранной цели",
+                   ("enemy production loss выбранной цели",
+                    lambda g: st.mean([d["chosen_enemy_loss"] for d in g["decisions"]
+                                       if d["chosen_is_corrupt"]
+                                       and d["chosen_enemy_loss"] is not None] or [0])),
+                   ("impact выбранной цели",
                     lambda g: st.mean([d["chosen_impact"] for d in g["decisions"]
                                        if d["chosen_is_corrupt"]
                                        and d["chosen_impact"] is not None] or [0])),
-                   ("leader loss выбранной цели",
+                   ("leader production loss выбранной цели",
                     lambda g: st.mean([d["chosen_leader_loss"] for d in g["decisions"]
                                        if d["chosen_is_corrupt"]
                                        and d["chosen_leader_loss"] is not None] or [0])),
+                   ("leader impact выбранной цели",
+                    lambda g: st.mean([d["chosen_leader_impact"] for d in g["decisions"]
+                                       if d["chosen_is_corrupt"]
+                                       and d["chosen_leader_impact"] is not None] or [0])),
                    ("tie rate решений",
                     lambda g: sum(1 for d in g["decisions"]
                                   if d["at_max_group"] >= 2)
