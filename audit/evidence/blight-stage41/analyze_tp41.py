@@ -110,8 +110,8 @@ def choices_by_decision_seq(events):
             pending = None
 
     if pending is not None:
+        # Не считаем незакрытое решение подтверждённым chooser-result.
         stats["decision_without_bot_decision"] += 1
-        choices[pending["decision"]["seq"]] = pending["choice"]
 
     stats["matched_decisions"] = len(choices)
     stats["matched_choices"] = len(used_choices)
