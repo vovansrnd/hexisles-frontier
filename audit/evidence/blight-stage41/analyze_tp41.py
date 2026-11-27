@@ -44,6 +44,7 @@ def choices_by_decision_seq(events):
     pending = None
     used_choices = set()
     used_bot_decisions = set()
+    matched_choice_count = 0
 
     for ev in events:
         kind = ev.get("kind")
@@ -80,6 +81,8 @@ def choices_by_decision_seq(events):
 
             if pending["readonly"] is None:
                 stats["decision_without_readonly"] += 1
+            if choice is not None:
+                matched_choice_count += 1
 
             bd_player = ev.get("player_id", ev.get("player"))
             if bd_player is not None and str(bd_player) != str(dec.get("player")):
@@ -114,7 +117,8 @@ def choices_by_decision_seq(events):
         stats["decision_without_bot_decision"] += 1
 
     stats["matched_decisions"] = len(choices)
-    stats["matched_choices"] = len(used_choices)
+    stats["matched_choices"] = matched_choice_count
+    stats["unclosed_choice_events"] = len(used_choices) - matched_choice_count
     return choices, stats
 
 
