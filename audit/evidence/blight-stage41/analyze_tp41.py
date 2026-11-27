@@ -474,10 +474,26 @@ def main() -> None:
               f"места {dict(sorted(seats.items()))}")
 
     out = {"tie_rate": per_arm_tie,
-           "chosen": {arm: {"total": chosen_total[arm], "max_impact": max_imp[arm],
-                            "leader_hit": lead_hit[arm], "leader_missed": lead_miss[arm],
-                            "weak": weak[arm], "other_action": other_action[arm]}
-                      for arm in ARMS},
+           "chosen": {arm: {
+               "total": chosen_total[arm],
+               "max_impact": max_imp[arm],
+               "leader_hit": lead_hit[arm],
+               "leader_missed": lead_miss[arm],
+               "weak": weak[arm],
+               "other_action": other_action[arm],
+               "totals": {
+                   "enemy_production_loss": sum(enemy_loss_values[arm]),
+                   "impact": sum(ch_imp[arm]),
+                   "leader_production_loss": sum(lead_imp[arm]),
+                   "leader_impact": sum(lead_impact_values[arm]),
+               },
+               "means": {
+                   "enemy_production_loss": st.mean(enemy_loss_values[arm]),
+                   "impact": st.mean(ch_imp[arm]),
+                   "leader_production_loss": st.mean(lead_imp[arm]),
+                   "leader_impact": st.mean(lead_impact_values[arm]),
+               },
+           } for arm in ARMS},
            "quality": res_quality, "guardrails": guard,
            "plugin_errors": perr, "pairs": len(full), "map_mismatch": len(map_bad)}
     json.dump(out, open(root / "tp41_analysis_summary.json", "w", encoding="utf-8"),
