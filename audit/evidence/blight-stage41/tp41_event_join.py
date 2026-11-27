@@ -554,6 +554,11 @@ def make_report(root: Path, out_dir: Path) -> dict[str, Any]:
             ),
             rng,
         ),
+        "potential_impact_gain_total": paired_cluster_bootstrap(
+            seed_rows,
+            lambda summary: summary["potential_impact_gain"]["total"],
+            rng,
+        ),
         "potential_impact_gain_per_corrupt_choice": paired_cluster_bootstrap(
             seed_rows,
             lambda summary: (
@@ -561,6 +566,11 @@ def make_report(root: Path, out_dir: Path) -> dict[str, Any]:
                 / summary["n_corrupt_actions"]
                 if summary["n_corrupt_actions"] else 0.0
             ),
+            rng,
+        ),
+        "potential_leader_impact_gain_total_signed": paired_cluster_bootstrap(
+            seed_rows,
+            lambda summary: summary["potential_leader_impact_gain"]["total_signed"],
             rng,
         ),
         "potential_leader_impact_gain_per_corrupt_choice": paired_cluster_bootstrap(
