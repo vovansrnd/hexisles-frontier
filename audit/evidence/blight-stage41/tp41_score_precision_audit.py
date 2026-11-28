@@ -1,133 +1,370 @@
 #!/usr/bin/env python3
-"""tp41_score_precision_audit — Stage 4.1.3: чувствительность анализа к
-округлению mod_score (точность 6 знаков в диагностике, EPS=1e-9 в анализаторах).
+"""Stage 4.1.3 score precision audit using the corrected seq event join.
 
-Разрез max-score групп (задание п.1-2):
-  A0: max mod_score == 3.5 (потолок clamped) / < 3.5 (ниже потолка);
-  A1: max mod_score > 3.5 (overflow-область) / <= 3.5 (ниже потолка);
-  unknown-impact отдельно.
-Для каждой группы: решений, связанных кандидатов, одинаковых/разных impact,
-потенциально исправимых по impact.
+Important:
+- Do NOT read corrupt_decisions_*.jsonl.gz: those sidecars predate the
+  corrected event join and contain a non-unique turn/player choice association.
+- Read existing trace.jsonl files and use tp41_event_join.join_trace().
+- mod_score in the traces was rounded to six decimal places. Exact pre-rounded
+  scores are unavailable, so ties outside the explicit A0 score cap are
+  precision-uncertain, not proven exact score ties.
 
-Все исправимые случаи (п.3): seed, perm, turn, player, выбранный hex,
-кандидаты top-score группы, записанные mod_score и impact.
+No simulations are launched.
 
-precision-uncertain: tie-группы, где равенство записанных mod_score может
-быть артефактом 6-значного округления (отмечаются, не реконструируются).
-
-Запуск: python3 tools/tp41_score_precision_audit.py
+Run:
+  python3 audit/evidence/blight-stage41/tp41_score_precision_audit.py \
+      --root sessions/tp41 --out-dir audit/evidence/blight-stage41
 """
 from __future__ import annotations
 
-import gzip
+import argparse
 import json
 import statistics as st
 from collections import Counter, defaultdict
 from pathlib import Path
+from typing import Any
 
-EV = Path("sessions/tp41/evidence")
+import tp41_event_join as event_join
+
+ARMS = ("A0", "A1")
 EPS = 1e-9
+SCORE_DECIMALS = 6
 
 
-def load(arm: str) -> list[dict]:
-    src = EV / f"corrupt_decisions_{arm}.jsonl.gz"
-    return [json.loads(l) for l in gzip.open(src, "rt", encoding="utf-8")]
+def bucket(arm: str, maximum: float) -> str:
+    if arm == "A0":
+        return "max==3.5 (cap output)" if abs(maximum - 3.5) <= EPS else "max<3.5"
+    return "max>3.5 (overflow output)" if maximum > 3.5 + EPS else "max<=3.5"
+
+
+def top_score_group(candidates: list[dict[str, Any]]) -> tuple[float | None, list[dict[str, Any]]]:
+    scored = [
+        (candidate, event_join.number(candidate.get("mod_score")))
+        for candidate in candidates
+    ]
+    scored = [(candidate, score) for candidate, score in scored if score is not None]
+    if not scored:
+        return None, []
+    maximum = max(score for _, score in scored)
+    return maximum, [
+        candidate for candidate, score in scored
+        if abs(score - maximum) <= EPS
+    ]
+
+
+def impact_class(group: list[dict[str, Any]]) -> str:
+    if len(group) < 2:
+        return "not_a_tie"
+    impacts = [event_join.number(candidate.get("impact")) for candidate in group]
+    if any(impact is None for impact in impacts):
+        return "unknown_impact"
+    values = [float(impact) for impact in impacts if impact is not None]
+    return "equal_impact" if max(values) - min(values) <= EPS else "different_impact"
+
+
+def classify_record(record: dict[str, Any]) -> dict[str, Any]:
+    """Classify one actual corrupt action, already matched by event seq."""
+    maximum, group = top_score_group(record.get("candidates") or [])
+    chosen_hex = record.get("choice_hex")
+    selected_matches = [
+        candidate for candidate in (record.get("candidates") or [])
+        if candidate.get("hex_id") == chosen_hex
+    ]
+    selected = selected_matches[0] if len(selected_matches) == 1 else None
+
+    result = {
+        "arm": record["arm"],
+        "seed": record["seed"],
+        "perm": record["perm"],
+        "turn": record["turn"],
+        "player": record["player"],
+        "decision_seq": record["decision_seq"],
+        "bot_decision_seq": record["bot_decision_seq"],
+        "chosen_hex": chosen_hex,
+        "max_score": maximum,
+        "score_bucket": bucket(record["arm"], maximum) if maximum is not None else "no_scored_candidates",
+        "top_group_size": len(group),
+        "top_group": [
+            {
+                "hex_id": candidate.get("hex_id"),
+                "mod_score": candidate.get("mod_score"),
+                "impact": candidate.get("impact"),
+            }
+            for candidate in group
+        ],
+        "applied_ok": record.get("applied_ok"),
+    }
+
+    if selected is None:
+        result["classification"] = "chosen_hex_not_in_candidates"
+        return result
+
+    top_hexes = {candidate.get("hex_id") for candidate in group}
+    if selected.get("hex_id") not in top_hexes:
+        result["classification"] = "chosen_outside_max_score_group"
+        return result
+
+    if not group:
+        result["classification"] = "no_scored_candidates"
+        return result
+
+    if len(group) == 1:
+        result["classification"] = "unique_score_maximum"
+        return result
+
+    kind = impact_class(group)
+    result["impact_tie_class"] = kind
+    impacts = [event_join.number(candidate.get("impact")) for candidate in group]
+    chosen_impact = event_join.number(selected.get("impact"))
+    max_impact = max((value for value in impacts if value is not None), default=None)
+    result["chosen_impact"] = chosen_impact
+    result["group_max_impact"] = max_impact
+
+    if kind == "unknown_impact" or chosen_impact is None or max_impact is None:
+        result["classification"] = "tied_impact_unknown"
+        return result
+    if kind == "equal_impact":
+        result["classification"] = "tied_equal_impact"
+        return result
+    if chosen_impact >= max_impact - EPS:
+        result["classification"] = "tied_different_impact_chosen_max"
+        return result
+
+    result["classification"] = "tied_different_impact_correctable_if_score_tie_is_exact"
+    result["potential_impact_gain_upper_bound"] = max_impact - chosen_impact
+    result["score_precision_status"] = (
+        "cap_output_tie_raw_scores_unavailable"
+        if record["arm"] == "A0" and maximum is not None and abs(maximum - 3.5) <= EPS
+        else "precision_uncertain_six_decimal_score"
+    )
+    return result
+
+
+def read_manifest(root: Path, arm: str) -> list[dict[str, Any]]:
+    return event_join.read_jsonl(root / f"manifest_{arm}.jsonl")
+
+
+def trace_path(root: Path, row: dict[str, Any]) -> Path:
+    path = Path(row["out_dir"])
+    if path.is_absolute():
+        return path / "trace.jsonl"
+    candidates = (root / path / "trace.jsonl", root.parent / path / "trace.jsonl")
+    for candidate in candidates:
+        if candidate.is_file():
+            return candidate
+    raise FileNotFoundError(f"trace.jsonl not found for out_dir={path}")
+
+
+def audit(root: Path) -> dict[str, Any]:
+    all_records: dict[str, list[dict[str, Any]]] = {arm: [] for arm in ARMS}
+    qc: dict[str, Counter] = {arm: Counter() for arm in ARMS}
+    join_problems: list[dict[str, Any]] = []
+
+    for arm in ARMS:
+        rows = read_manifest(root, arm)
+        qc[arm]["manifest_rows"] = len(rows)
+        for row in rows:
+            if row.get("status") != "completed":
+                qc[arm]["noncompleted_games"] += 1
+                continue
+            qc[arm]["completed_games"] += 1
+            path = trace_path(root, row)
+            events = event_join.read_jsonl(path)
+            joined, local_qc, problems = event_join.join_trace(events, row, arm)
+            for key, value in local_qc.items():
+                qc[arm][key] += value
+            join_problems.extend(problems)
+
+            for record in joined:
+                if record.get("action") != "corrupt_hex":
+                    continue
+                qc[arm]["actual_corrupt_actions"] += 1
+                if record.get("applied_ok") is True:
+                    qc[arm]["applied_corrupt_actions"] += 1
+                elif record.get("applied_ok") is False:
+                    qc[arm]["rejected_corrupt_actions"] += 1
+                else:
+                    qc[arm]["unknown_corrupt_application"] += 1
+                all_records[arm].append(classify_record(record))
+
+    summaries: dict[str, Any] = {}
+    all_correctable: list[dict[str, Any]] = []
+    for arm in ARMS:
+        arm_records = all_records[arm]
+        by_bucket: dict[str, list[dict[str, Any]]] = defaultdict(list)
+        for record in arm_records:
+            by_bucket[record["score_bucket"]].append(record)
+
+        bucket_summary: dict[str, Any] = {}
+        for key in sorted(by_bucket):
+            records = by_bucket[key]
+            classes = Counter(record["classification"] for record in records)
+            ties = [record for record in records if record["top_group_size"] >= 2]
+            different = [
+                record for record in ties
+                if record.get("impact_tie_class") == "different_impact"
+            ]
+            uncertain_ties = [
+                record for record in ties
+                if not (arm == "A0" and key == "max==3.5 (cap output)")
+            ]
+            correctable = [
+                record for record in records
+                if record["classification"] == "tied_different_impact_correctable_if_score_tie_is_exact"
+            ]
+            for record in correctable:
+                all_correctable.append(record)
+
+            bucket_summary[key] = {
+                "selected_corrupt_decisions": len(records),
+                "unique_maximum_decisions": sum(
+                    1 for record in records if record["top_group_size"] == 1
+                ),
+                "tie_groups": len(ties),
+                "tied_candidate_count": sum(record["top_group_size"] for record in ties),
+                "equal_impact_tie_groups": sum(
+                    1 for record in ties if record.get("impact_tie_class") == "equal_impact"
+                ),
+                "different_impact_tie_groups": len(different),
+                "unknown_impact_tie_groups": sum(
+                    1 for record in ties if record.get("impact_tie_class") == "unknown_impact"
+                ),
+                "correctable_if_recorded_score_tie_is_exact": len(correctable),
+                "potential_impact_gain_upper_bound": sum(
+                    float(record.get("potential_impact_gain_upper_bound") or 0)
+                    for record in correctable
+                ),
+                "precision_uncertain_tie_groups": len(uncertain_ties),
+                "precision_uncertain_different_impact_groups": sum(
+                    1 for record in different if record in uncertain_ties
+                ),
+                "mutually_exclusive_classifications": dict(sorted(classes.items())),
+                "classification_sum": sum(classes.values()),
+            }
+            if bucket_summary[key]["classification_sum"] != len(records):
+                raise AssertionError(f"{arm} {key}: classification partition mismatch")
+
+        summaries[arm] = {
+            "qc": dict(qc[arm]),
+            "selected_corrupt_actions": len(arm_records),
+            "buckets": bucket_summary,
+            "all_correctable_cases": sum(
+                1 for record in arm_records
+                if record["classification"] == "tied_different_impact_correctable_if_score_tie_is_exact"
+            ),
+        }
+
+    return {
+        "experiment": "Stage 4.1.3 — score precision audit using corrected seq join",
+        "source": "manifest + original per-game trace.jsonl; NOT corrupt_decisions_*.jsonl.gz",
+        "score_precision": {
+            "stored_decimals": SCORE_DECIMALS,
+            "tie_eps": EPS,
+            "raw_round_trip_scores_available": False,
+            "interpretation": (
+                "Scores in trace were rounded to six decimals. Exact pre-rounded "
+                "ties cannot be reconstructed. Every multi-candidate maximum-score "
+                "group outside the explicit A0 cap output is precision-uncertain. "
+                "A0 max==3.5 groups are cap-output ties; without raw scores it is "
+                "not possible to prove that every such tie was caused by clipping."
+            ),
+        },
+        "by_arm": summaries,
+        "correctable_cases": all_correctable,
+        "join_problems": join_problems,
+    }
+
+
+def render_report(result: dict[str, Any]) -> str:
+    lines = [
+        "=== Stage 4.1.3 — score precision audit (corrected seq join) ===",
+        "Source: original trace.jsonl; corrupt_decisions_*.jsonl.gz excluded",
+        "Score precision: six decimal places; EPS=1e-9",
+        "Raw pre-rounded scores are unavailable; no reconstruction attempted.",
+        "",
+    ]
+    for arm in ARMS:
+        summary = result["by_arm"][arm]
+        qc = summary["qc"]
+        lines.append(
+            f"{arm}: games={qc.get('completed_games', 0)}, "
+            f"joined decisions={qc.get('joined_decisions', 0)}, "
+            f"selected corrupt_hex={summary['selected_corrupt_actions']}, "
+            f"join problems={len(result['join_problems'])}"
+        )
+        for key, bucket_summary in summary["buckets"].items():
+            lines.append(
+                f"  {key}: selected={bucket_summary['selected_corrupt_decisions']}, "
+                f"unique={bucket_summary['unique_maximum_decisions']}, "
+                f"ties={bucket_summary['tie_groups']}, "
+                f"equal-impact ties={bucket_summary['equal_impact_tie_groups']}, "
+                f"different-impact ties={bucket_summary['different_impact_tie_groups']}, "
+                f"correctable-if-exact={bucket_summary['correctable_if_recorded_score_tie_is_exact']}, "
+                f"precision-uncertain ties={bucket_summary['precision_uncertain_tie_groups']}"
+            )
+        lines.append("")
+
+    a0_cap = result["by_arm"]["A0"]["buckets"].get("max==3.5 (cap output)", {})
+    a1_over = result["by_arm"]["A1"]["buckets"].get("max>3.5 (overflow output)", {})
+    a1_below = result["by_arm"]["A1"]["buckets"].get("max<=3.5", {})
+    lines += [
+        "=== Interpretation ===",
+        f"A0 cap-output decisions: {a0_cap.get('selected_corrupt_decisions', 0)}; "
+        f"cap-output score ties: {a0_cap.get('tie_groups', 0)}; "
+        f"different-impact cap ties: {a0_cap.get('different_impact_tie_groups', 0)}; "
+        f"impact-correctable if exact: {a0_cap.get('correctable_if_recorded_score_tie_is_exact', 0)}.",
+        f"A1 overflow score ties: {a1_over.get('tie_groups', 0)}; "
+        f"precision-uncertain ties: {a1_over.get('precision_uncertain_tie_groups', 0)}; "
+        f"different-impact ties: {a1_over.get('different_impact_tie_groups', 0)}; "
+        f"correctable if exact: {a1_over.get('correctable_if_recorded_score_tie_is_exact', 0)}.",
+        f"A1 below-cap correctable if exact: {a1_below.get('correctable_if_recorded_score_tie_is_exact', 0)}.",
+        "",
+        "A recorded six-decimal tie is not proof of exact equality of the underlying float.",
+        "The number of confirmed cap-induced ties cannot be established without raw pre-rounded scores.",
+        "The A0 max==3.5 bucket is therefore called cap-output ties, not confirmed raw-score clipping ties.",
+        "A1 overflow ties are precision-uncertain. Zero different-impact ties would only mean",
+        "that an impact-based secondary tie-break had no observed leverage in those recorded groups;",
+        "it would not prove that the underlying raw scores were exactly equal.",
+        "No games were launched. This is an upper-bound/offline classification only.",
+        "",
+        "=== Correctable cases ===",
+    ]
+    for record in result["correctable_cases"]:
+        lines.append(
+            f"{record['arm']} seed={record['seed']} perm={record['perm']} "
+            f"turn={record['turn']} player={record['player']} "
+            f"decision_seq={record['decision_seq']} bot_seq={record['bot_decision_seq']} "
+            f"chosen_hex={record['chosen_hex']} chosen_impact={record.get('chosen_impact')} "
+            f"group_max_impact={record.get('group_max_impact')} "
+            f"gain_upper_bound={record.get('potential_impact_gain_upper_bound')} "
+            f"status={record.get('score_precision_status', 'precision-uncertain-or-cap-output')}"
+        )
+        for candidate in record.get("top_group", []):
+            lines.append(
+                f"  hex={candidate['hex_id']} mod_score={candidate['mod_score']} "
+                f"impact={candidate['impact']}"
+            )
+    return "\n".join(lines) + "\n"
 
 
 def main() -> None:
-    out = {"groups": {}, "correctable_cases": []}
-    for arm in ("A0", "A1"):
-        recs = load(arm)
-        groups = Counter()
-        g_detail = defaultdict(lambda: {"decisions": 0, "tied_candidates": 0,
-                                        "equal_impact": 0, "different_impact": 0,
-                                        "correctable": 0})
-        correctable = []
-        for rec in recs:
-            cands = rec.get("candidates") or []
-            scored = [c for c in cands if c.get("mod_score") is not None]
-            if not scored:
-                continue
-            mx = max(c["mod_score"] for c in scored)
-            group = [c for c in scored if abs(c["mod_score"] - mx) <= EPS]
-            chosen_hex = rec.get("chosen_hex_id")
-            ch = next((c for c in group if c.get("hex_id") == chosen_hex), None) \
-                if chosen_hex is not None else None
-            if ch is None:
-                # выбрано не corrupt_hex или вне группы (см. Stage 4.1.1: вне группы — 0)
-                continue
-            impacts = [float(c.get("impact") or 0) for c in group]
-            same = (max(impacts) - min(impacts) <= EPS)
-            correctable_here = (not same) and (float(ch.get("impact") or 0) < max(impacts) - EPS)
-            if arm == "A0":
-                gkey = "max==3.5 (потолок)" if abs(mx - 3.5) <= EPS else "max<3.5 (ниже потолка)"
-            else:
-                gkey = "max>3.5 (overflow)" if mx > 3.5 + EPS else "max<=3.5 (ниже потолка)"
-            # precision-uncertain: tie в overflow-области может быть артефактом
-            # 6-значного округления (два разных исходных score > 3.5 могут
-            # совпасть после round(x, 6)); A0-потолок даёт точное равенство 3.5.
-            uncertain = (arm == "A1" and mx > 3.5 + EPS and not same)
-            d = g_detail[gkey]
-            d["decisions"] += 1
-            d["tied_candidates"] += len(group)
-            if same:
-                d["equal_impact"] += 1
-            else:
-                d["different_impact"] += 1
-                if uncertain:
-                    d["precision_uncertain"] += 1
-                if correctable_here:
-                    d["correctable"] += 1
-                    correctable.append({
-                        "arm": arm, "seed": rec["seed"], "perm": rec["perm"],
-                        "turn": rec.get("turn"), "player": rec.get("player_id"),
-                        "chosen_hex": chosen_hex,
-                        "chosen_impact": float(ch.get("impact") or 0),
-                        "group_max_impact": max(impacts),
-                        "gain": round(max(impacts) - float(ch.get("impact") or 0), 4),
-                        "group": [{"hex_id": c.get("hex_id"),
-                                   "mod_score": c.get("mod_score"),
-                                   "impact": c.get("impact")} for c in group],
-                        "precision_uncertain": uncertain,
-                    })
-            groups[gkey] += 1
-        print(f"\n=== {arm}: max-score группы ===")
-        for k, n in sorted(groups.items()):
-            d = g_detail[k]
-            print(f"  {k}: решений {n} | связанных кандидатов {d['tied_candidates']} | "
-                  f"одинаковый impact {d['equal_impact']} | разный {d['different_impact']} | "
-                  f"исправимо {d['correctable']}"
-                  + (f" | precision-uncertain {d.get('precision_uncertain', 0)}" if d.get("precision_uncertain") else ""))
-        out["groups"][arm] = {k: dict(d) for k, d in g_detail.items()}
-        out["correctable_cases"].extend(correctable)
-
-    print("\n=== Все исправимые случаи (A0 и A1) ===")
-    for c in out["correctable_cases"]:
-        print(f"  {c['arm']} seed{c['seed']} p{c['perm']} T{c['turn']} pid{c['player']}: "
-              f"hex{c['chosen_hex']} impact={c['chosen_impact']} < max {c['group_max_impact']} "
-              f"(прирост {c['gain']}){', precision-uncertain' if c['precision_uncertain'] else ''}")
-
-    # сводка для финального отчёта
-    a0_cap = out["groups"]["A0"].get("max==3.5 (потолок)",
-                                     {"decisions": 0, "correctable": 0})
-    a0_below = out["groups"]["A0"].get("max<3.5 (ниже потолка)",
-                                       {"decisions": 0, "correctable": 0})
-    a1_over = out["groups"]["A1"].get("max>3.5 (overflow)",
-                                      {"decisions": 0, "correctable": 0, "precision_uncertain": 0})
-    a1_below = out["groups"]["A1"].get("max<=3.5 (ниже потолка)",
-                                       {"decisions": 0, "correctable": 0})
-    print("\n=== Сводка для Stage 4.1.3 ===")
-    print(f"A0 cap-induced (max==3.5): решений {a0_cap['decisions']}, "
-          f"исправимо {a0_cap['correctable']}")
-    print(f"A0 below-cap (max<3.5): решений {a0_below['decisions']}, "
-          f"исправимо {a0_below['correctable']}")
-    print(f"A1 overflow (max>3.5): решений {a1_over['decisions']}, "
-          f"исправимо {a1_over['correctable']}, precision-uncertain ties "
-          f"{a1_over.get('precision_uncertain', 0)}")
-    print(f"A1 below-cap: решений {a1_below['decisions']}, исправимо {a1_below['correctable']}")
-    json.dump(out, open(EV / "score_precision_audit.json", "w", encoding="utf-8"),
-              ensure_ascii=False, indent=1)
-    print(f"\nсохранено: {EV / 'score_precision_audit.json'}")
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--root", type=Path, default=Path("sessions/tp41"))
+    parser.add_argument("--out-dir", type=Path, default=Path(__file__).resolve().parent)
+    args = parser.parse_args()
+    result = audit(args.root.resolve())
+    out_dir = args.out_dir.resolve()
+    out_dir.mkdir(parents=True, exist_ok=True)
+    json_path = out_dir / "score_precision_audit.json"
+    report_path = out_dir / "score_precision_audit_report.txt"
+    json_path.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
+    report_path.write_text(render_report(result), encoding="utf-8")
+    print(f"Traces joined; problems={len(result['join_problems'])}")
+    for arm in ARMS:
+        print(f"{arm}: corrupt={result['by_arm'][arm]['selected_corrupt_actions']}, "
+              f"correctable={result['by_arm'][arm]['all_correctable_cases']}")
+    print(f"JSON: {json_path}")
+    print(f"Report: {report_path}")
 
 
 if __name__ == "__main__":
