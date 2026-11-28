@@ -1,13 +1,17 @@
 #!/usr/bin/env python3
-"""Stage 4.1.3 score precision audit using the corrected seq event join.
+"""Offline score-precision audit using the corrected sequence event join.
 
 Important:
-- Do NOT read corrupt_decisions_*.jsonl.gz: those sidecars predate the
-  corrected event join and contain a non-unique turn/player choice association.
-- Read existing trace.jsonl files and use tp41_event_join.join_trace().
-- mod_score in the traces was rounded to six decimal places. Exact pre-rounded
-  scores are unavailable, so ties outside the explicit A0 score cap are
-  precision-uncertain, not proven exact score ties.
+- Read only original per-game trace.jsonl files; never use stale sidecars.
+- Associate choices through tp41_event_join.join_trace().
+- The logged mod_score is the FINAL plugin score, rounded to six decimals.
+  It is not the unadjusted base score: A0 applies a 3.5 clamp before later
+  penalties/faction bonuses; A1 applies the overflow transform before those
+  later adjustments. Therefore final values above/below 3.5 do not identify
+  whether the base score was clamped or transformed.
+- Only final-score buckets are reported. Raw base scores are unavailable.
+- Every multi-candidate maximum group is precision-uncertain because the
+  pre-rounded final float was not saved.
 
 No simulations are launched.
 
@@ -31,10 +35,11 @@ EPS = 1e-9
 SCORE_DECIMALS = 6
 
 
-def bucket(arm: str, maximum: float) -> str:
-    if arm == "A0":
-        return "max==3.5 (cap output)" if abs(maximum - 3.5) <= EPS else "max<3.5"
-    return "max>3.5 (overflow output)" if maximum > 3.5 + EPS else "max<=3.5"
+def bucket(maximum: float) -> str:
+    """Partition the observed final score, not the hidden pre-adjustment base."""
+    if abs(maximum - 3.5) <= EPS:
+        return "final_max==3.5"
+    return "final_max<3.5" if maximum < 3.5 else "final_max>3.5"
 
 
 def top_score_group(candidates: list[dict[str, Any]]) -> tuple[float | None, list[dict[str, Any]]]:
@@ -82,7 +87,7 @@ def classify_record(record: dict[str, Any]) -> dict[str, Any]:
         "bot_decision_seq": record["bot_decision_seq"],
         "chosen_hex": chosen_hex,
         "max_score": maximum,
-        "score_bucket": bucket(record["arm"], maximum) if maximum is not None else "no_scored_candidates",
+        "score_bucket": bucket(maximum) if maximum is not None else "no_scored_candidates",
         "top_group_size": len(group),
         "top_group": [
             {
@@ -132,11 +137,7 @@ def classify_record(record: dict[str, Any]) -> dict[str, Any]:
 
     result["classification"] = "tied_different_impact_correctable_if_score_tie_is_exact"
     result["potential_impact_gain_upper_bound"] = max_impact - chosen_impact
-    result["score_precision_status"] = (
-        "cap_output_tie_raw_scores_unavailable"
-        if record["arm"] == "A0" and maximum is not None and abs(maximum - 3.5) <= EPS
-        else "precision_uncertain_six_decimal_score"
-    )
+    result["score_precision_status"] = "precision_uncertain_six_decimal_final_score"
     return result
 
 
@@ -204,10 +205,10 @@ def audit(root: Path) -> dict[str, Any]:
                 record for record in ties
                 if record.get("impact_tie_class") == "different_impact"
             ]
-            uncertain_ties = [
-                record for record in ties
-                if not (arm == "A0" and key == "max==3.5 (cap output)")
-            ]
+            # All logged final scores are rounded to six decimals. No bucket
+            # has access to the pre-rounded float, so every recorded tie is
+            # precision-uncertain, including final_max==3.5.
+            uncertain_ties = ties
             correctable = [
                 record for record in records
                 if record["classification"] == "tied_different_impact_correctable_if_score_tie_is_exact"
@@ -255,19 +256,29 @@ def audit(root: Path) -> dict[str, Any]:
         }
 
     return {
-        "experiment": "Stage 4.1.3 — score precision audit using corrected seq join",
+        "experiment": "Stage 4.1 — score precision audit (final-score bucket correction)",
         "source": "manifest + original per-game trace.jsonl; NOT corrupt_decisions_*.jsonl.gz",
         "score_precision": {
             "stored_decimals": SCORE_DECIMALS,
             "tie_eps": EPS,
             "raw_round_trip_scores_available": False,
+            "raw_base_scores_available": False,
             "minimum_confirmed_cap_induced_tie_groups": 0,
+            "score_field_semantics": {
+                "logged_field": "candidate.mod_score",
+                "meaning": "Final value returned by BlightMod.score_ai_action(), rounded to six decimals by run_tp41.py.",
+                "A0": "The base corrupt score is clamped with min(3.5, base); subsequent anti-loop penalties and faction-progress bonuses modify that score. The final returned value can be below, equal to, or above 3.5.",
+                "A1": "The raw base corrupt score is passed through the rank-preserving transform; subsequent anti-loop penalties and faction-progress bonuses modify that value. The final returned value can be below, equal to, or above 3.5.",
+                "bucket_interpretation": "final_max buckets describe only the logged final score. They do not identify whether the unadjusted A0 base was clamped or whether the unadjusted A1 base entered the overflow transform."
+            },
             "interpretation": (
-                "Scores in trace were rounded to six decimals. Exact pre-rounded "
-                "ties cannot be reconstructed. Every multi-candidate maximum-score "
-                "group outside the explicit A0 cap output is precision-uncertain. "
-                "A0 max==3.5 groups are cap-output ties; without raw scores it is "
-                "not possible to prove that every such tie was caused by clipping."
+                "Only final mod_score values rounded to six decimals are present in "
+                "the trace. Raw pre-adjustment base scores and pre-rounded final "
+                "scores are unavailable. Therefore score buckets relative to 3.5 "
+                "are descriptive final-output regions only, not cap/overflow regions. "
+                "Every multi-candidate recorded maximum group is precision-uncertain, "
+                "including groups whose recorded final maximum equals 3.5. The number "
+                "of ties actually caused by the base clamp is not identifiable."
             ),
         },
         "by_arm": summaries,
@@ -278,7 +289,7 @@ def audit(root: Path) -> dict[str, Any]:
 
 def render_report(result: dict[str, Any]) -> str:
     lines = [
-        "=== Stage 4.1.3 — score precision audit (corrected seq join) ===",
+        "=== Stage 4.1 — score precision audit (corrected seq join; final-score buckets) ===",
         "Source: original trace.jsonl; corrupt_decisions_*.jsonl.gz excluded",
         "Score precision: six decimal places; EPS=1e-9",
         "Raw pre-rounded scores are unavailable; no reconstruction attempted.",
@@ -305,28 +316,25 @@ def render_report(result: dict[str, Any]) -> str:
             )
         lines.append("")
 
-    a0_cap = result["by_arm"]["A0"]["buckets"].get("max==3.5 (cap output)", {})
-    a1_over = result["by_arm"]["A1"]["buckets"].get("max>3.5 (overflow output)", {})
-    a1_below = result["by_arm"]["A1"]["buckets"].get("max<=3.5", {})
+    total_ties = {
+        arm: sum(b.get("tie_groups", 0) for b in result["by_arm"][arm]["buckets"].values())
+        for arm in ARMS
+    }
+    total_uncertain = {
+        arm: sum(b.get("precision_uncertain_tie_groups", 0) for b in result["by_arm"][arm]["buckets"].values())
+        for arm in ARMS
+    }
     lines += [
         "=== Interpretation ===",
-        f"A0 cap-output decisions: {a0_cap.get('selected_corrupt_decisions', 0)}; "
-        f"cap-output score ties: {a0_cap.get('tie_groups', 0)}; "
-        f"different-impact cap ties: {a0_cap.get('different_impact_tie_groups', 0)}; "
-        f"impact-correctable if exact: {a0_cap.get('correctable_if_recorded_score_tie_is_exact', 0)}.",
-        f"A1 overflow score ties: {a1_over.get('tie_groups', 0)}; "
-        f"precision-uncertain ties: {a1_over.get('precision_uncertain_tie_groups', 0)}; "
-        f"different-impact ties: {a1_over.get('different_impact_tie_groups', 0)}; "
-        f"correctable if exact: {a1_over.get('correctable_if_recorded_score_tie_is_exact', 0)}.",
-        f"A1 below-cap correctable if exact: {a1_below.get('correctable_if_recorded_score_tie_is_exact', 0)}.",
-        "",
-        "A recorded six-decimal tie is not proof of exact equality of the underlying float.",
-        "Minimum confirmed cap-induced ties: 0; raw pre-rounded scores are absent, so the actual count is not identifiable.",
-        "The A0 max==3.5 bucket is therefore called cap-output ties, not confirmed raw-score clipping ties.",
-        "A1 overflow ties are precision-uncertain. Zero different-impact ties would only mean",
-        "that an impact-based secondary tie-break had no observed leverage in those recorded groups;",
-        "it would not prove that the underlying raw scores were exactly equal.",
-        "No games were launched. This is an upper-bound/offline classification only.",
+        "Buckets partition the OBSERVED FINAL mod_score relative to 3.5 only.",
+        "They do not classify the pre-adjustment base score or identify clamp/overflow membership.",
+        "A0 clamps its base score before later penalties and faction bonuses; A1 transforms its base score before those later adjustments.",
+        f"Recorded maximum-score tie groups: A0={total_ties['A0']}, A1={total_ties['A1']}.",
+        f"Precision-uncertain recorded tie groups: A0={total_uncertain['A0']}, A1={total_uncertain['A1']}; all ties are uncertain at six-decimal storage precision.",
+        "Correctable cases are upper bounds conditional on the recorded six-decimal tie being an exact tie in the underlying final float.",
+        "Minimum confirmed cap-induced tie groups: 0; raw base and pre-rounded final scores were not logged.",
+        "The number of true ties caused by the A0 base clamp or A1 base overflow transform cannot be inferred from final mod_score.",
+        "No games were launched. This is an offline, trace-based classification only.",
         "",
         "=== Correctable cases ===",
     ]
@@ -338,7 +346,7 @@ def render_report(result: dict[str, Any]) -> str:
             f"chosen_hex={record['chosen_hex']} chosen_impact={record.get('chosen_impact')} "
             f"group_max_impact={record.get('group_max_impact')} "
             f"gain_upper_bound={record.get('potential_impact_gain_upper_bound')} "
-            f"status={record.get('score_precision_status', 'precision-uncertain-or-cap-output')}"
+            f"status={record.get('score_precision_status', 'precision_uncertain_six_decimal_final_score')}"
         )
         for candidate in record.get("top_group", []):
             lines.append(
