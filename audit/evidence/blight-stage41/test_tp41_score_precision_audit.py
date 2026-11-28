@@ -50,7 +50,7 @@ def test_singleton_is_not_a_tie_and_same_turn_decisions_are_unique(tmp_path: Pat
     events_a0 = (
         decision_cycle(1, 0, 4, 1, [cand(1, 3.5, 4), cand(2, 3.5, 8)])
         + decision_cycle(5, 0, 4, 3, [cand(3, 2.0, 5)])
-        + decision_cycle(8, 0, 4, 4, [cand(4, 3.98, 5), cand(5, 3.98, 9)])
+        + decision_cycle(9, 0, 4, 4, [cand(4, 3.98, 5), cand(5, 3.98, 9)])
     )
     events_a1 = decision_cycle(
         1, 0, 4, 10, [cand(10, 3.2, 4), cand(11, 3.2, 8)]
