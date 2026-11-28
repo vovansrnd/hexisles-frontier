@@ -1,15 +1,11 @@
 #!/usr/bin/env python3
-"""run_tp42 — Stage 4.2.0: диагностический replay Stage 4.1 с записью
-ПОЛНОГО binary64 score, который видит chooser Skynet.
+"""Corrective Stage 4.2 replay: capture the actual chooser's binary64 scores.
 
-Отличие от run_tp41.py (его логика не менялась, файл сохранён):
-  * в каждом кандидате corrupt_decision дополнительно записываются
-    - mod_score_full — float(sc) без округления (binary64),
-    - mod_score_hex  — точное hex-представление binary64 (без округления),
-    - candidate_order — порядковый номер в исходном списке corrupt_acts;
-  * "mod_score" остаётся round(float(sc), 6) — совместимость со Stage 4.1;
-  * scorer повторно НЕ вызывается: используется уже полученный sc;
-  * read-only проверки state/RNG сохранены без изменений.
+Scores are tapped from the real BotBrain._score_action return values during
+choose_action(), after choose_action() resolves _get_goal(legal_actions).
+No scorer is called a second time for logging. Candidate records retain
+candidate_order, chooser_goal, and score_observed_by_chooser. The six-decimal
+mod_score remains for Stage 4.1 compatibility.
 
 Партии идентичны Stage 4.1: seeds 72001-72020, 24 рассадки, A0 (main@3590371)
 и A1 (f84f978), та же конфигурация. Новые файлы: sessions/tp42/.
@@ -41,6 +37,49 @@ CONFIG = {"points_to_win": 12, "fog_of_war": True, "fast_start": False,
           "routes": False, "bot_difficulty": "skynet",
           "cult_suppression_theft": False, "cult_corrupt_tear": False}
 DICE_PIPS = {2: 1, 3: 2, 4: 3, 5: 4, 6: 5, 8: 5, 9: 4, 10: 3, 11: 2, 12: 1}
+
+
+def _goal_snapshot(goal):
+    if goal is None:
+        return None
+    return {
+        "kind": getattr(goal, "kind", None),
+        "target_id": getattr(goal, "target_id", None),
+        "score": float(getattr(goal, "score", 0.0)),
+        "needed": {str(getattr(k, "value", k)): int(v)
+                   for k, v in (getattr(goal, "needed", {}) or {}).items()},
+        "created_turn": int(getattr(goal, "created_turn", 0)),
+        "locked_until_turn": int(getattr(goal, "locked_until_turn", 0)),
+    }
+
+
+def choose_action_with_actual_score_capture(brain, player_id, legal_actions):
+    """Capture _score_action values from the real choose_action pass."""
+    captured_scores, captured_goals = {}, {}
+    original_method = brain._score_action
+    namespace = getattr(brain, "__dict__", {})
+    had_override = "_score_action" in namespace
+    previous_override = namespace.get("_score_action")
+
+    def capture_score(action, goal, actions):
+        value = original_method(action, goal, actions)
+        if action.type == "corrupt_hex":
+            key = id(action)
+            if key in captured_scores:
+                raise RuntimeError("duplicate _score_action capture for corrupt_hex")
+            captured_scores[key] = float(value)
+            captured_goals[key] = _goal_snapshot(goal)
+        return value
+
+    brain._score_action = capture_score
+    try:
+        chosen = brain.choose_action(player_id, legal_actions)
+    finally:
+        if had_override:
+            brain._score_action = previous_override
+        else:
+            delattr(brain, "_score_action")
+    return chosen, captured_scores, captured_goals
 
 
 def _norm(d):
@@ -159,7 +198,7 @@ def run_game(job: dict) -> dict:
                 # --- READ-ONLY диагностика corrupt_hex ---
                 snap_before = state_hash(g)
                 rng_before = g.rng.getstate()
-                goal = getattr(brain, "current_goal", None)
+                current_goal_before = _goal_snapshot(getattr(brain, "current_goal", None))
                 leader = brain._leader_id()
                 my_vp = int(g.get_victory_points(pid))
                 leader_vp = (int(g.get_victory_points(leader, public=True))
@@ -198,8 +237,6 @@ def run_game(job: dict) -> dict:
                             leader_loss += loss
                             leader_n += 1
                     impact = enemy_loss * pips
-                    sc = brain._score_extension_action(act, goal)
-                    score_value = None if sc is None else float(sc)
                     cands.append({
                         "candidate_order": order,
                         "hex_id": hid,
@@ -213,17 +250,19 @@ def run_game(job: dict) -> dict:
                         "impact": round(impact, 4),
                         "leader_loss_share": (round(leader_loss / enemy_loss, 4)
                                               if enemy_loss else 0.0),
-                        "mod_score": None if score_value is None else round(score_value, 6),
-                        "mod_score_full": score_value,
-                        "mod_score_hex": (None if score_value is None
-                                          else score_value.hex()),
+                        "score_observed_by_chooser": False,
+                        "mod_score": None,
+                        "mod_score_full": None,
+                        "mod_score_hex": None,
+                        "chooser_goal": None,
                     })
+                decision_event_index = len(dbg.events)
                 dbg._emit("corrupt_decision", turn=int(g.global_turn),
                           player=int(pid), archetype=seats_map.get(str(pid), "?"),
                           my_vp=my_vp, leader=leader, leader_vp=leader_vp,
                           lead_margin=my_vp - leader_vp, alignment=align,
-                          resources=res0, n_candidates=len(cands),
-                          candidates=cands)
+                          resources=res0, current_goal_before=current_goal_before,
+                          n_candidates=len(cands), candidates=cands)
                 # контроль read-only: снимки строго вокруг диагностического чтения
                 snap_after_diag = state_hash(g)
                 rng_ok_diag = rng_before == g.rng.getstate()
@@ -232,9 +271,26 @@ def run_game(job: dict) -> dict:
                           rng_unchanged=rng_ok_diag, n_candidates=len(cands))
                 if not diag_ok:
                     raise RuntimeError("диагностика изменила состояние/RNG")
-                # --- решение бота (после диагностики) ---
-                a = brain.choose_action(pid, legal_actions) if brain \
-                    else legal_actions[0]
+                a, chooser_scores, chooser_goals = choose_action_with_actual_score_capture(
+                    brain, pid, legal_actions
+                )
+                for candidate, action in zip(cands, corrupt_acts):
+                    key = id(action)
+                    if key in chooser_scores:
+                        value = chooser_scores[key]
+                        candidate["score_observed_by_chooser"] = True
+                        candidate["mod_score"] = round(value, 6)
+                        candidate["mod_score_full"] = value
+                        candidate["mod_score_hex"] = value.hex()
+                        candidate["chooser_goal"] = chooser_goals.get(key)
+                dbg.events[decision_event_index]["candidates"] = cands
+                if a.type == "corrupt_hex" and not all(
+                    candidate["score_observed_by_chooser"] for candidate in cands
+                ):
+                    raise RuntimeError(
+                        "chooser selected corrupt_hex but some candidates lacked "
+                        "scores from the real _score_action pass"
+                    )
                 if not any(x is a for x in legal_actions):
                     a = next((x for x in legal_actions
                               if x.type == a.type and x.p == a.p), legal_actions[0])
@@ -244,7 +300,10 @@ def run_game(job: dict) -> dict:
                     dbg._emit("corrupt_choice", turn=int(g.global_turn),
                               player=int(pid), hex_id=chid,
                               impact=(ch or {}).get("impact"),
-                              mod_score=(ch or {}).get("mod_score"))
+                              candidate_order=(ch or {}).get("candidate_order"),
+                              mod_score=(ch or {}).get("mod_score"),
+                              mod_score_full=(ch or {}).get("mod_score_full"),
+                              mod_score_hex=(ch or {}).get("mod_score_hex"))
                 dbg.record_bot_decision(pid, a, None)
                 if dbg.events and dbg.events[-1].get("kind") == "bot_decision":
                     pending_apply[int(pid)] = len(dbg.events)
