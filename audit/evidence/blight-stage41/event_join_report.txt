@@ -1,41 +1,54 @@
-=== Forensics: сопоставление событий ===
-  choice_action_mismatch_bot_decision: 27532
-  seq_monotonic: 960
-  проблем-записей: 0
+=== Stage 4.1.1 event join forensic report ===
+Traces: 960 | seed clusters: 20
+Join: strict seq order; corrupt_decision -> readonly -> optional choice -> bot_decision
 
-=== ЧАСТЬ B. Выбранный corrupt_hex вне кандидатов своего решения ===
-  всего: 0 | применено движком: 0 | отклонено: 0
-  по рукам: {}
-  случаев НЕТ — прежняя находка 651 отозвана (артефакт join по (turn, player))
+=== Join QC ===
+A0:
+  completed_games: 480
+  corrupt_choice_events: 13925
+  corrupt_decisions: 40626
+  joined_decisions: 40626
+  manifest_rows: 480
+  noncompleted_games: 0
+  trace_seq_monotonic: 480
+  read-only: 40626/40626 state+RNG PASS
+  applied status: {'build_metropolis:applied': 954, 'build_outpost:applied': 2658, 'build_route:applied': 3168, 'buy_charter:applied': 4721, 'corrupt_hex:applied': 13925, 'end_turn:applied': 3849, 'play_charter:applied': 1560, 'propose_trade:applied': 3719, 'purify_hex:applied': 2814, 'trade_bank:applied': 3258}
+A1:
+  completed_games: 480
+  corrupt_choice_events: 13607
+  corrupt_decisions: 39791
+  joined_decisions: 39791
+  manifest_rows: 480
+  noncompleted_games: 0
+  trace_seq_monotonic: 480
+  read-only: 39791/39791 state+RNG PASS
+  applied status: {'build_metropolis:applied': 950, 'build_outpost:applied': 2667, 'build_route:applied': 3131, 'buy_charter:applied': 4706, 'corrupt_hex:applied': 13607, 'end_turn:applied': 3658, 'play_charter:applied': 1507, 'propose_trade:applied': 3689, 'purify_hex:applied': 2725, 'trade_bank:applied': 3151}
 
-=== ЧАСТЬ C. Offline what-if (корректный join) ===
-выбрано corrupt_hex: 27532 из 80417 решений (52885 — другое действие)
-выбранных вне группы максимума mod_score: 0
-  A0: {'группа с одинаковым impact': 13334, 'группа с разными impact': 591, 'исправимо tie-break': 266, 'выбран уже максимум группы': 325} | всего 14516
-  A1: {'группа с одинаковым impact': 13606, 'группа с разными impact': 1, 'исправимо tie-break': 1} | всего 13608
+=== Offline what-if (corrupt_hex selected; maximum-score group only) ===
+A0:
+  corrupt choices: 13925; non-corrupt actions: 26701
+  disjoint categories: {'tied_different_impact_chosen_max': 325, 'tied_different_impact_correctable': 266, 'tied_equal_impact': 1085, 'unique_score_maximum': 12249} (sum=13925)
+  score-tie groups: 1676; equal-impact ties: 1085; different-impact ties: 591; unknown-impact ties: 0
+  correctable: 266 (1.910% of corrupt choices; 45.008% of different-impact ties)
+  potential impact gain: n=266, total=638.000, mean=2.398, median=2.000
+  potential leader-impact delta (upper bound): n=266, signed total=469.000, positive=703.000, negative=-234.000, mean=1.763, median=1.000
+A1:
+  corrupt choices: 13607; non-corrupt actions: 26184
+  disjoint categories: {'tied_different_impact_correctable': 1, 'tied_equal_impact': 908, 'unique_score_maximum': 12698} (sum=13607)
+  score-tie groups: 909; equal-impact ties: 908; different-impact ties: 1; unknown-impact ties: 0
+  correctable: 1 (0.007% of corrupt choices; 100.000% of different-impact ties)
+  potential impact gain: n=1, total=1.000, mean=1.000, median=1.000
+  potential leader-impact delta (upper bound): n=1, signed total=-3.000, positive=0.000, negative=-3.000, mean=-3.000, median=-3.000
 
-=== Парные метрики (bootstrap 0x41) ===
+=== Paired bootstrap by seed cluster (A1 - A0) ===
+correctable_share_all_corrupt: delta=-0.020581975443704888 CI95=[-0.03095538921598459, -0.011652039729591765] clusters=20
+correctable_share_different_impact_ties: delta=-0.386125047353177 CI95=[-0.5434293875299347, -0.22432929330310938] clusters=20
+different_impact_tie_share_of_all_score_ties: delta=-0.36657462832289045 CI95=[-0.4639479041649942, -0.27094283634884836] clusters=20
+potential_impact_gain_total: delta=-31.85 CI95=[-46.2, -19.45] clusters=20
+potential_impact_gain_per_corrupt_choice: delta=-0.04889604087106388 CI95=[-0.07402735342263835, -0.028260593709723756] clusters=20
+potential_leader_impact_gain_total_signed: delta=-23.6 CI95=[-39.15, -9.85] clusters=20
+potential_leader_impact_gain_per_corrupt_choice: delta=-0.039478841924802735 CI95=[-0.0678253923218172, -0.014407526232234248] clusters=20
 
---- Объём Blight-действий ---
-    None: A0 29.010 → A1 28.348 | Δ -0.662 CI95 (-1.7208, 0.3729) | сидов +8/−12
-    None: A0 33.758 → A1 32.865 | Δ -0.894 CI95 (-2.0062, 0.1729) | сидов +8/−12
-
---- Качество выборов (доля от corrupt-выборов) ---
-    доля выбранных с максимальным impact: A0 0.000 → A1 0.000 | Δ +0.000 CI95 (0.0, 0.0) | сидов +0/−0
-
---- Guardrails ---
-    поселения/партию: A0 5.537 → A1 5.556 | Δ +0.019 CI95 (-0.2312, 0.2604) | NI: PASS
-    города/партию: A0 7.483 → A1 7.258 | Δ -0.225 CI95 (-0.4812, 0.0333) | NI: FAIL
-    финальные ОП/игрока: A0 8.761 → A1 8.706 | Δ -0.055 CI95 (-0.1437, 0.0359) | NI: PASS
-
-=== По архетипам (tie rate и доля макс-impact) ===
-  A0 c3po: решений 10002 (tie 27%), выбрано corrupt 3357, макс-impact 97.9%
-  A1 c3po: решений 9770 (tie 22%), выбрано corrupt 3262, макс-impact 100.0%
-  A0 r2d2: решений 10141 (tie 28%), выбрано corrupt 3350, макс-impact 98.8%
-  A1 r2d2: решений 9851 (tie 25%), выбрано corrupt 3309, макс-impact 100.0%
-  A0 t800: решений 9770 (tie 26%), выбрано corrupt 3357, макс-impact 97.9%
-  A1 t800: решений 9819 (tie 23%), выбрано corrupt 3377, макс-impact 100.0%
-  A0 walle: решений 10713 (tie 24%), выбрано corrupt 3861, макс-impact 97.8%
-  A1 walle: решений 10351 (tie 21%), выбрано corrupt 3659, макс-impact 100.0%
-
-детали: sessions/tp41/event_join_forensics.json
+Interpretation: offline what-if is an upper bound, not an observed game outcome.
+No simulation is started by this script.
+Full structured results: /opt/MyApps/2424/hexisles-frontier/audit/evidence/blight-stage41/event_join_forensics.json

@@ -1,0 +1,15 @@
+{
+ "superseded_files": [
+  "stage41_corrected_report.md",
+  "tp41_corrected_report.txt",
+  "stale_action_analysis.json",
+  "tp41_corrected_metrics.json"
+ ],
+ "superseded_by": [
+  "event_join_forensics.json",
+  "event_join_report.txt",
+  "full_metrics_4.1.txt"
+ ],
+ "reason": "файлы содержали утверждения о 651 неучтённых действиях и 5790/5803 выборах вне группы максимума, полученные неуникальным join по (turn, player); Stage 4.1.1 seq-join показал 0 таких случаев — утверждения отозваны",
+ "date": "2026-11-27"
+}
