@@ -9,6 +9,7 @@ if str(HERE) not in sys.path:
     sys.path.insert(0, str(HERE))
 import tp42_action_parity as parity
 import tp42_exact_score_audit as exact
+import run_tp42 as runner
 
 
 def cand(order: int, hex_id: int, full: float, impact: float):
@@ -19,6 +20,8 @@ def cand(order: int, hex_id: int, full: float, impact: float):
         "mod_score_full": full,
         "mod_score_hex": full.hex(),
         "impact": impact,
+        "score_observed_by_chooser": True,
+        "chooser_goal": {"kind": "road", "target_id": 5, "needed": {}},
     }
 
 
@@ -141,3 +144,54 @@ def test_action_signature_ignores_diagnostic_fields():
     hex_diff = json.loads(json.dumps(base))
     hex_diff[0]["candidates"][0]["hex_id"] = 6
     assert parity.signature(base) != parity.signature(hex_diff)
+
+
+
+def test_actual_score_capture_uses_goal_passed_by_choose_action_and_restores_method():
+    class FakeAction:
+        type = "corrupt_hex"
+
+    class FakeBrain:
+        def __init__(self):
+            self.current_goal = "stale-goal"
+            self.observed_goal = None
+
+        def _score_action(self, action, goal, actions):
+            self.observed_goal = goal
+            return 4.25
+
+        def choose_action(self, player_id, legal_actions):
+            actual_goal = "goal-recomputed-inside-chooser"
+            for action in legal_actions:
+                self._score_action(action, actual_goal, legal_actions)
+            return legal_actions[0]
+
+    brain = FakeBrain()
+    original = brain._score_action
+    action = FakeAction()
+    chosen, scores, goals = runner.choose_action_with_actual_score_capture(
+        brain, 0, [action]
+    )
+
+    assert chosen is action
+    assert brain.observed_goal == "goal-recomputed-inside-chooser"
+    assert scores[id(action)] == 4.25
+    assert goals[id(action)] is None
+    assert brain._score_action == original
+
+
+def test_selected_corrupt_decision_rejects_unobserved_candidate_score(tmp_path: Path):
+    root = tmp_path / "tp42"
+    events = decision_cycle(1, 0, 4, 1, [
+        cand(0, 1, 3.5, 3), cand(1, 2, 3.5, 7)])
+    events[0]["candidates"][1]["score_observed_by_chooser"] = False
+    d = write_session(root, "A0", "one", events)
+    write_manifest(root, "A0", [{"seed": 103, "perm": 0, "status": "completed",
+                                 "out_dir": d, "seats": {"0": "c3po"}}])
+    write_manifest(root, "A1", [])
+    try:
+        exact.audit(root)
+    except ValueError as exc:
+        assert "without actual chooser scores" in str(exc)
+    else:
+        raise AssertionError("audit accepted a candidate without chooser score")
