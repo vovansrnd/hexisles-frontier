@@ -1,0 +1,25 @@
+=== Stage 4.2.0 — exact-score tie observability (binary64) ===
+Source: sessions/tp42 trace.jsonl (mod_score_full / mod_score_hex);
+seq join reused from Stage 4.1 (tp41_event_join.join_trace).
+Exact top groups: direct float equality, NO EPS — the Skynet chooser
+compares actual floats; a recorded six-decimal tie is not a tie the AI
+sees unless the underlying binary64 values are equal.
+
+A0: games=480, selected corrupt_hex=13925, join problems=0, hex round-trip mismatches=0, non-integral impact records=0
+  exact top-score ties: 1674 (chosen inside group 1674; equal-impact 1084, different-impact 590, unknown 0); exact correctable: 265
+  rounded ties (Stage 4.1 comparator): 1676; rounded-only (never ties for the AI): 2; exact-only (rounding broke the tie): 0
+  chosen outside exact top group: 0; exact-tie chosen has lowest candidate_order: 1674
+
+A1: games=480, selected corrupt_hex=13607, join problems=0, hex round-trip mismatches=0, non-integral impact records=0
+  exact top-score ties: 907 (chosen inside group 907; equal-impact 906, different-impact 1, unknown 0); exact correctable: 1
+  rounded ties (Stage 4.1 comparator): 909; rounded-only (never ties for the AI): 2; exact-only (rounding broke the tie): 0
+  chosen outside exact top group: 0; exact-tie chosen has lowest candidate_order: 907
+
+=== Interpretation ===
+The chooser compares actual binary64 floats. Only exact ties exist for
+it; recorded six-decimal ties that disappear under exact comparison
+were never ties for the AI. Impact values are integral (integer loss
+steps times integer pips), so the logged four-decimal impact is exact
+and sufficient for candidate comparison.
+Offline classification of the Stage 4.2 replay traces; no additional
+games were launched for this audit.

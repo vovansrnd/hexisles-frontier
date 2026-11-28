@@ -1,0 +1,12 @@
+{
+  "old_root": "sessions/tp41",
+  "new_root": "sessions/tp42",
+  "old_games": 960,
+  "new_games": 960,
+  "matched": 960,
+  "mismatched": 0,
+  "only_in_old": [],
+  "only_in_new": [],
+  "mismatch_details": [],
+  "parity_ok": true
+}
