@@ -93,7 +93,7 @@ def test_singleton_is_not_a_tie_and_same_turn_decisions_are_unique(tmp_path: Pat
     assert a0_above["precision_uncertain_tie_groups"] == 1
 
 
-def test_overflow_ties_are_flagged_precision_uncertain(tmp_path: Path):
+def test_final_scores_above_threshold_are_precision_uncertain(tmp_path: Path):
     root = tmp_path / "tp41"
     for arm in ("A0", "A1"):
         (root / arm / "one").mkdir(parents=True)
