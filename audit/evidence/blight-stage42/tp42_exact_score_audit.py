@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
 """Stage 4.2.0 — exact-score tie observability audit.
 
-Reads the Stage 4.2 replay traces (sessions/tp42), which store, per corrupt
-candidate, the FULL binary64 score the chooser actually saw:
+Reads corrective replay traces where every selected corrupt_hex candidate's
+score is captured from the real BotBrain._score_action call during
+choose_action(), after the chooser itself resolves _get_goal(legal_actions):
 
-  mod_score       — round(score, 6) (compatibility with Stage 4.1 analysis)
-  mod_score_full  — float(score), no rounding
-  mod_score_hex   — exact binary64 representation (float.hex()), no rounding
+  mod_score       — round(actual chooser score, 6) (Stage 4.1 compatibility)
+  mod_score_full  — exact return value from the real _score_action invocation
+  mod_score_hex   — exact binary64 representation (float.hex())
   candidate_order — position in the original corrupt_acts list
+  chooser_goal    — goal actually passed to that _score_action invocation
 
 Event association reuses the Stage 4.1 corrected seq join
 (tp41_event_join.join_trace). Exact top-score groups are built with DIRECT
@@ -115,6 +117,16 @@ def impacts_integral(candidates: list[dict[str, Any]]) -> bool:
 def classify_exact(record: dict[str, Any]) -> dict[str, Any]:
     """Classify one chosen corrupt_hex action by exact float scores."""
     candidates = record.get("candidates") or []
+    unobserved = [
+        c.get("hex_id") for c in candidates
+        if c.get("score_observed_by_chooser") is not True
+        or candidate_score(c) is None
+    ]
+    if unobserved:
+        raise ValueError(
+            f"selected corrupt_hex decision seq={record.get('decision_seq')} "
+            f"contains candidates without actual chooser scores: {unobserved}"
+        )
     maximum, group = exact_top_group(candidates)
     _, rounded_group = rounded_top_group(candidates)
     chosen_hex = record.get("choice_hex")
@@ -148,7 +160,8 @@ def classify_exact(record: dict[str, Any]) -> dict[str, Any]:
                  "mod_score_full": c.get("mod_score_full"),
                  "mod_score_hex": c.get("mod_score_hex"),
                  "impact": c.get("impact"),
-                 "candidate_order": c.get("candidate_order")}
+                 "candidate_order": c.get("candidate_order"),
+                 "chooser_goal": c.get("chooser_goal")}
                 for c in group
             ],
             "exact_group_max_impact": (max(group_values) if group_values else None),
@@ -296,8 +309,9 @@ def audit(root: Path) -> dict[str, Any]:
             raise AssertionError(f"{arm}: classification partition mismatch")
 
     return {
-        "experiment": "Stage 4.2.0 — exact-score tie observability (binary64)",
-        "source": "sessions/tp42 trace.jsonl (mod_score_full / mod_score_hex); seq join from Stage 4.1",
+        "experiment": "Stage 4.2.1 — exact actual-chooser score observability (binary64)",
+        "source": "corrective replay traces; scores captured inline from BotBrain._score_action during choose_action(); seq join from Stage 4.1",
+        "score_capture_semantics": "Captured return value from the real _score_action call after choose_action() resolves _get_goal(legal_actions). No stale brain.current_goal substitution and no extra scorer call for logging.",
         "comparison_policy": {
             "exact": "direct float == against exact maximum; no EPS (chooser compares actual floats)",
             "rounded_compatibility_cut": "Stage 4.1 comparator: round(...,6) with EPS=1e-9",
@@ -314,9 +328,8 @@ def render_report(result: dict[str, Any]) -> str:
         "=== Stage 4.2.0 — exact-score tie observability (binary64) ===",
         "Source: sessions/tp42 trace.jsonl (mod_score_full / mod_score_hex);",
         "seq join reused from Stage 4.1 (tp41_event_join.join_trace).",
-        "Exact top groups: direct float equality, NO EPS — the Skynet chooser",
-        "compares actual floats; a recorded six-decimal tie is not a tie the AI",
-        "sees unless the underlying binary64 values are equal.",
+        "Exact top groups: direct float equality, NO EPS — values were captured",
+        "from the actual _score_action calls made by the Skynet chooser.",
         "",
     ]
     for arm in ARMS:
@@ -361,8 +374,8 @@ def render_report(result: dict[str, Any]) -> str:
         "were never ties for the AI. Impact values are integral (integer loss",
         "steps times integer pips), so the logged four-decimal impact is exact",
         "and sufficient for candidate comparison.",
-        "Offline classification of the Stage 4.2 replay traces; no additional",
-        "games were launched for this audit.",
+        "Scores were captured inside the real chooser evaluation; no scorer",
+        "was called a second time solely for logging.",
     ]
     return "\n".join(lines) + "\n"
 
