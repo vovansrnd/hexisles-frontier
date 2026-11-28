@@ -3,16 +3,13 @@
     "stage41_corrected_report.md",
     "tp41_corrected_report.txt",
     "stale_action_analysis.json",
-    "tp41_corrected_metrics.json",
-    "score_precision_audit.json",
-    "score_precision_audit_report.txt"
+    "tp41_corrected_metrics.json"
   ],
   "superseded_by": [
     "event_join_forensics.json",
     "event_join_report.txt",
-    "full_metrics_4.1.txt",
-    "tp41_score_precision_audit.py (final-score buckets only; raw base scores unavailable)"
+    "full_metrics_4.1.txt"
   ],
-  "reason": "файлы содержали утверждения о 651 неучтённых действиях и 5790/5803 выборах вне группы максимума, полученные неуникальным join по (turn, player); Stage 4.1.1 seq-join показал 0 таких случаев — утверждения отозваны. score_precision_audit.json/report were themselves superseded (Stage 4.1.3 audit reused pre-seq-join chosen_hex_id sidecars, duplicated decisions, and counted singleton maximums as equal-impact ties); in Stage 4.1.4 they have been regenerated from the original trace.jsonl files via the corrected seq join (tp41_score_precision_audit.py; verified run: 960 traces, join problems=0, A0 13925 / A1 13607 selected corrupt_hex) and are no longer superseded. The Stage 4.1.4 precision report is also superseded: its A0 '<3.5' bucket silently included final scores above 3.5, and its A1 '>3.5 overflow' label inferred base-transform membership from the final score. Source inspection shows both arms apply penalties/faction bonuses after the base clamp/transform; the final logged mod_score can therefore lie on either side of 3.5 regardless of base region. Regenerate using final-score-only buckets for both arms and mark every recorded tie precision-uncertain.",
+  "reason": "файлы содержали утверждения о 651 неучтённых действиях и 5790/5803 выборах вне группы максимума, полученные неуникальным join по (turn, player); Stage 4.1.1 seq-join показал 0 таких случаев — утверждения отозваны. score_precision_audit.json/report were themselves superseded (Stage 4.1.3 audit reused pre-seq-join chosen_hex_id sidecars, duplicated decisions, and counted singleton maximums as equal-impact ties; the Stage 4.1.4 regeneration used arm-specific '<3.5'/'overflow' labels that inferred base clamp/overflow membership from the final score). In Stage 4.1.6 they have been regenerated from the original trace.jsonl files with neutral final-score buckets (final_max<3.5 / ==3.5 / >3.5, identical for both arms), every recorded tie marked precision-uncertain, and the score_field_semantics block documenting A0 base clamp → penalties/faction bonuses → final mod_score and A1 base overflow transform → penalties/faction bonuses → final mod_score (verified run: 960 traces, join problems=0, A0 13925 / A1 13607 selected corrupt_hex, tie groups 1676/909, correctable 266/1). They are no longer superseded.",
   "date": "2026-11-28"
 }
