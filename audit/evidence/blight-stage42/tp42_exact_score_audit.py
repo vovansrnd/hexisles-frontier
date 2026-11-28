@@ -127,6 +127,21 @@ def classify_exact(record: dict[str, Any]) -> dict[str, Any]:
             f"selected corrupt_hex decision seq={record.get('decision_seq')} "
             f"contains candidates without actual chooser scores: {unobserved}"
         )
+    goal_snapshots = {
+        json.dumps(c.get("chooser_goal"), sort_keys=True)
+        for c in candidates
+    }
+    if len(goal_snapshots) != 1:
+        raise ValueError(
+            f"selected corrupt_hex decision seq={record.get('decision_seq')} "
+            "has inconsistent chooser_goal snapshots across candidates"
+        )
+    orders = [c.get("candidate_order") for c in candidates]
+    if any(not isinstance(order, int) for order in orders) or len(set(orders)) != len(orders):
+        raise ValueError(
+            f"selected corrupt_hex decision seq={record.get('decision_seq')} "
+            "has missing or duplicated candidate_order values"
+        )
     maximum, group = exact_top_group(candidates)
     _, rounded_group = rounded_top_group(candidates)
     chosen_hex = record.get("choice_hex")
