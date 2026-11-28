@@ -1,22 +1,24 @@
-SUPERSEDED — DO NOT USE THE STAGE 4.2.0 EXACT-TIE COUNTS
+=== Stage 4.2.0 — exact-score tie observability (binary64) ===
+Source: sessions/tp42 trace.jsonl (mod_score_full / mod_score_hex);
+seq join reused from Stage 4.1 (tp41_event_join.join_trace).
+Exact top groups: direct float equality, NO EPS — values were captured
+from the actual _score_action calls made by the Skynet chooser.
 
-The previous runner computed each candidate score before choose_action()
-using brain.current_goal.
+A0: games=480, selected corrupt_hex=13925, join problems=0, hex round-trip mismatches=0, non-integral impact records=0
+  exact top-score ties: 1674 (chosen inside group 1674; equal-impact 1084, different-impact 590, unknown 0); exact correctable: 265
+  rounded ties (Stage 4.1 comparator): 1676; rounded-only (never ties for the AI): 2; exact-only (rounding broke the tie): 0
+  chosen outside exact top group: 0; exact-tie chosen has lowest candidate_order: 1674
 
-This is not guaranteed to be the goal actually used by the chooser.
-BotBrain.choose_action() calls _get_goal(legal_actions) internally and
-may recompute a goal when current_goal is absent, invalid, or unlocked.
+A1: games=480, selected corrupt_hex=13607, join problems=0, hex round-trip mismatches=0, non-integral impact records=0
+  exact top-score ties: 907 (chosen inside group 907; equal-impact 906, different-impact 1, unknown 0); exact correctable: 1
+  rounded ties (Stage 4.1 comparator): 909; rounded-only (never ties for the AI): 2; exact-only (rounding broke the tie): 0
+  chosen outside exact top group: 0; exact-tie chosen has lowest candidate_order: 907
 
-Therefore the stored binary64 values were not proven to be the values
-compared by the chooser. The 960/960 action-signature parity check remains
-a valid replay-behavior check, but the exact tie counts and candidate-order
-claims are provisional and must not be used.
-
-The corrective runner captures the exact return from _score_action
-during the real choose_action() pass, after _get_goal() has run. Each
-candidate carries score_observed_by_chooser and chooser_goal. The corrected
-analyzer rejects a selected corrupt_hex decision when any candidate score
-was not captured from that actual scoring pass.
-
-Regenerate and verify the exact-score JSON/report before restoring
-conclusions about ties seen by the AI.
+=== Interpretation ===
+The chooser compares actual binary64 floats. Only exact ties exist for
+it; recorded six-decimal ties that disappear under exact comparison
+were never ties for the AI. Impact values are integral (integer loss
+steps times integer pips), so the logged four-decimal impact is exact
+and sufficient for candidate comparison.
+Scores were captured inside the real chooser evaluation; no scorer
+was called a second time solely for logging.
