@@ -151,6 +151,14 @@ def test_actual_score_capture_uses_goal_passed_by_choose_action_and_restores_met
     class FakeAction:
         type = "corrupt_hex"
 
+    class FakeGoal:
+        kind = "recomputed"
+        target_id = 42
+        score = 7.0
+        needed = {}
+        created_turn = 3
+        locked_until_turn = 4
+
     class FakeBrain:
         def __init__(self):
             self.current_goal = "stale-goal"
@@ -161,7 +169,7 @@ def test_actual_score_capture_uses_goal_passed_by_choose_action_and_restores_met
             return 4.25
 
         def choose_action(self, player_id, legal_actions):
-            actual_goal = "goal-recomputed-inside-chooser"
+            actual_goal = FakeGoal()
             for action in legal_actions:
                 self._score_action(action, actual_goal, legal_actions)
             return legal_actions[0]
@@ -174,9 +182,10 @@ def test_actual_score_capture_uses_goal_passed_by_choose_action_and_restores_met
     )
 
     assert chosen is action
-    assert brain.observed_goal == "goal-recomputed-inside-chooser"
+    assert brain.observed_goal.kind == "recomputed"
     assert scores[id(action)] == 4.25
-    assert goals[id(action)] is None
+    assert goals[id(action)]["kind"] == "recomputed"
+    assert goals[id(action)]["target_id"] == 42
     assert brain._score_action == original
 
 
