@@ -261,6 +261,7 @@ def audit(root: Path) -> dict[str, Any]:
             "stored_decimals": SCORE_DECIMALS,
             "tie_eps": EPS,
             "raw_round_trip_scores_available": False,
+            "minimum_confirmed_cap_induced_tie_groups": 0,
             "interpretation": (
                 "Scores in trace were rounded to six decimals. Exact pre-rounded "
                 "ties cannot be reconstructed. Every multi-candidate maximum-score "
@@ -320,7 +321,7 @@ def render_report(result: dict[str, Any]) -> str:
         f"A1 below-cap correctable if exact: {a1_below.get('correctable_if_recorded_score_tie_is_exact', 0)}.",
         "",
         "A recorded six-decimal tie is not proof of exact equality of the underlying float.",
-        "The number of confirmed cap-induced ties cannot be established without raw pre-rounded scores.",
+        "Minimum confirmed cap-induced ties: 0; raw pre-rounded scores are absent, so the actual count is not identifiable.",
         "The A0 max==3.5 bucket is therefore called cap-output ties, not confirmed raw-score clipping ties.",
         "A1 overflow ties are precision-uncertain. Zero different-impact ties would only mean",
         "that an impact-based secondary tie-break had no observed leverage in those recorded groups;",
