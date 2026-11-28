@@ -50,6 +50,7 @@ def test_singleton_is_not_a_tie_and_same_turn_decisions_are_unique(tmp_path: Pat
     events_a0 = (
         decision_cycle(1, 0, 4, 1, [cand(1, 3.5, 4), cand(2, 3.5, 8)])
         + decision_cycle(5, 0, 4, 3, [cand(3, 2.0, 5)])
+        + decision_cycle(8, 0, 4, 4, [cand(4, 3.98, 5), cand(5, 3.98, 9)])
     )
     events_a1 = decision_cycle(
         1, 0, 4, 10, [cand(10, 3.2, 4), cand(11, 3.2, 8)]
@@ -76,15 +77,20 @@ def test_singleton_is_not_a_tie_and_same_turn_decisions_are_unique(tmp_path: Pat
     result = precision.audit(root)
 
     a0_summary = result["by_arm"]["A0"]
-    a0_cap = a0_summary["buckets"]["max==3.5 (cap output)"]
-    a0_below = a0_summary["buckets"]["max<3.5"]
+    a0_equal = a0_summary["buckets"]["final_max==3.5"]
+    a0_below = a0_summary["buckets"]["final_max<3.5"]
+    a0_above = a0_summary["buckets"]["final_max>3.5"]
 
-    assert a0_summary["selected_corrupt_actions"] == 2
-    assert a0_cap["tie_groups"] == 1
-    assert a0_cap["different_impact_tie_groups"] == 1
-    assert a0_cap["correctable_if_recorded_score_tie_is_exact"] == 1
+    assert a0_summary["selected_corrupt_actions"] == 3
+    assert a0_equal["tie_groups"] == 1
+    assert a0_equal["different_impact_tie_groups"] == 1
+    assert a0_equal["correctable_if_recorded_score_tie_is_exact"] == 1
+    assert a0_equal["precision_uncertain_tie_groups"] == 1
     assert a0_below["unique_maximum_decisions"] == 1
     assert a0_below["tie_groups"] == 0
+    assert a0_above["tie_groups"] == 1
+    assert a0_above["correctable_if_recorded_score_tie_is_exact"] == 1
+    assert a0_above["precision_uncertain_tie_groups"] == 1
 
 
 def test_overflow_ties_are_flagged_precision_uncertain(tmp_path: Path):
@@ -118,11 +124,18 @@ def test_overflow_ties_are_flagged_precision_uncertain(tmp_path: Path):
         )
 
     result = precision.audit(root)
-    a1_overflow = result["by_arm"]["A1"]["buckets"]["max>3.5 (overflow output)"]
+    a1_above = result["by_arm"]["A1"]["buckets"]["final_max>3.5"]
 
-    assert a1_overflow["tie_groups"] == 1
-    assert a1_overflow["precision_uncertain_tie_groups"] == 1
-    assert a1_overflow["different_impact_tie_groups"] == 1
-    assert a1_overflow["correctable_if_recorded_score_tie_is_exact"] == 1
+    assert a1_above["tie_groups"] == 1
+    assert a1_above["precision_uncertain_tie_groups"] == 1
+    assert a1_above["different_impact_tie_groups"] == 1
+    assert a1_above["correctable_if_recorded_score_tie_is_exact"] == 1
     assert len(result["correctable_cases"]) == 1
     assert result["correctable_cases"][0]["decision_seq"] == 1
+
+
+
+def test_bucket_labels_describe_final_scores_not_base_overflow():
+    assert precision.bucket(3.499999) == "final_max<3.5"
+    assert precision.bucket(3.5) == "final_max==3.5"
+    assert precision.bucket(3.500001) == "final_max>3.5"
