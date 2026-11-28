@@ -204,3 +204,23 @@ def test_selected_corrupt_decision_rejects_unobserved_candidate_score(tmp_path: 
         assert "without actual chooser scores" in str(exc)
     else:
         raise AssertionError("audit accepted a candidate without chooser score")
+
+
+
+def test_selected_corrupt_decision_rejects_inconsistent_chooser_goals(tmp_path: Path):
+    root = tmp_path / "tp42"
+    events = decision_cycle(1, 0, 4, 1, [
+        cand(0, 1, 3.5, 3), cand(1, 2, 3.5, 7)])
+    events[0]["candidates"][1]["chooser_goal"] = {
+        "kind": "different-goal", "target_id": 99, "needed": {}
+    }
+    d = write_session(root, "A0", "one", events)
+    write_manifest(root, "A0", [{"seed": 104, "perm": 0, "status": "completed",
+                                 "out_dir": d, "seats": {"0": "c3po"}}])
+    write_manifest(root, "A1", [])
+    try:
+        exact.audit(root)
+    except ValueError as exc:
+        assert "inconsistent chooser_goal" in str(exc)
+    else:
+        raise AssertionError("audit accepted inconsistent chooser goals")
